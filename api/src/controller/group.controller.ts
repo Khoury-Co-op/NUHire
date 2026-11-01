@@ -10,13 +10,14 @@ import {
   evaluateGroupBarrier,
 } from '../config/socket';
 import { STEP_ORDER, STEP_TO_ROUTE, leftmostStep, recordStep } from '../config/steps';
+import { dbNow } from '../config/database';
 
 // A student moved into a group arrives there now, whatever their stamp says.
 // Kept, a stamp from before the new group's barrier released makes them look
 // present all along: the barrier reads closed for a group already through it,
 // and the student is never offered the catch-up. Someone never stamped stays
-// unstamped, since they still have not shown up.
-const RESTAMP_ON_MOVE = 'present_at = IF(present_at IS NULL, NULL, CURRENT_TIMESTAMP)';
+// unstamped, since they still have not shown up. The `?` takes dbNow().
+const RESTAMP_ON_MOVE = 'present_at = IF(present_at IS NULL, NULL, ?)';
 
 export class GroupController {
   constructor(
@@ -185,7 +186,7 @@ export class GroupController {
 
     const updateQuery = `UPDATE Users SET group_id = ?, ${RESTAMP_ON_MOVE} WHERE email = ? AND class = ?`;
 
-    this.db.query(updateQuery, [new_group_id, email, class_id], (err, result: any) => {
+    this.db.query(updateQuery, [new_group_id, dbNow(), email, class_id], (err, result: any) => {
       if (err) {
         console.error('Error reassigning student to new group:', err);
         res.status(500).json({ error: 'Failed to reassign student' });
@@ -346,9 +347,9 @@ export class GroupController {
       );
       if (online.length > 0) {
         await conn.query(
-          `UPDATE Users SET present_at = CURRENT_TIMESTAMP
+          `UPDATE Users SET present_at = ?
             WHERE class = ? AND present_at IS NULL AND email IN (${online.map(() => '?').join(',')})`,
-          [classId, ...online]
+          [dbNow(), classId, ...online]
         );
       }
       await conn.commit();
@@ -568,34 +569,38 @@ export class GroupController {
 
       const updateQuery = `UPDATE Users SET class = ?, group_id = ?, ${RESTAMP_ON_MOVE} WHERE email = ?`;
 
-      this.db.query(updateQuery, [class_id, group_id, email], (updateErr, updateResult: any) => {
-        if (updateErr) {
-          console.error('Error updating student:', updateErr);
-          res.status(500).json({ error: 'Failed to add student to class and group' });
-          return;
+      this.db.query(
+        updateQuery,
+        [class_id, group_id, dbNow(), email],
+        (updateErr, updateResult: any) => {
+          if (updateErr) {
+            console.error('Error updating student:', updateErr);
+            res.status(500).json({ error: 'Failed to add student to class and group' });
+            return;
+          }
+
+          if (updateResult.affectedRows === 0) {
+            res.status(404).json({ error: 'Student not added' });
+            return;
+          }
+
+          const roomId = `group_${group_id}_class_${class_id}`;
+          this.io.to(roomId).emit('studentAddedToGroup', {
+            groupId: group_id,
+            classId: class_id,
+          });
+
+          this.recountBarrier(class_id, group_id);
+
+          res.json({
+            message: 'Student added to group successfully',
+            email,
+            group_id,
+            class_id,
+            action: 'updated',
+          });
         }
-
-        if (updateResult.affectedRows === 0) {
-          res.status(404).json({ error: 'Student not added' });
-          return;
-        }
-
-        const roomId = `group_${group_id}_class_${class_id}`;
-        this.io.to(roomId).emit('studentAddedToGroup', {
-          groupId: group_id,
-          classId: class_id,
-        });
-
-        this.recountBarrier(class_id, group_id);
-
-        res.json({
-          message: 'Student added to group successfully',
-          email,
-          group_id,
-          class_id,
-          action: 'updated',
-        });
-      });
+      );
     });
   };
 
