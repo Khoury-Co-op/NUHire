@@ -17,6 +17,7 @@ import { useProgressManager } from '../components/progress';
 import { useSocket } from '../components/socketContext';
 import Facts from '../components/facts';
 import { useAuth } from '../components/AuthContext';
+import { useJobDescription } from '../components/useJobDescription';
 import { PageLoader, Spinner } from '../components/spinner';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -107,7 +108,7 @@ export default function ResumesPage() {
   const [restricted, setRestricted] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   const [showJobDescription, setShowJobDescription] = useState(false);
-  const [jobDescPath, setJobDescPath] = useState('');
+  const jobDescPath = useJobDescription(user).job?.filePath ?? '';
   const [jobDescNumPages, setJobDescNumPages] = useState<number | null>(null);
   const [jobDescPageNumber, setJobDescPageNumber] = useState(1);
   const [unsavedVotes, setUnsavedVotes] = useState<VoteRecord[]>([]);
@@ -192,35 +193,6 @@ export default function ResumesPage() {
       console.error('❌ [FETCH-FINISHED] Failed to fetch finished count:', err);
     }
   };
-
-  useEffect(() => {
-    const fetchJobDescription = async () => {
-      if (!user?.group_id || !user?.class) return;
-
-      try {
-        const assignmentResponse = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-          { credentials: 'include' }
-        );
-        const assignmentData = await assignmentResponse.json();
-
-        if (assignmentData.job) {
-          const jobResponse = await fetch(
-            `${API_BASE_URL}/jobs/title?title=${encodeURIComponent(assignmentData.job)}&class_id=${user.class}`,
-            { credentials: 'include' }
-          );
-          const jobData = await jobResponse.json();
-          if (jobData.file_path) {
-            setJobDescPath(jobData.file_path);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching job description:', error);
-      }
-    };
-
-    fetchJobDescription();
-  }, [user?.group_id, user?.class]);
 
   // The saved counters used to be wiped the moment the tenth decision landed,
   // while the student was still sitting on this page waiting for teammates. A

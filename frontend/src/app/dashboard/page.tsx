@@ -14,6 +14,7 @@ import { useAuth } from '../components/AuthContext';
 import { useSocket } from '../components/socketContext';
 import { PageLoader } from '../components/spinner';
 import { useCatchUp } from '../components/useCatchUp';
+import { useJobDescription } from '../components/useJobDescription';
 
 const Dashboard = () => {
   const { updateProgress, fetchProgress } = useProgressManager();
@@ -67,60 +68,21 @@ const Dashboard = () => {
 
   const [popup, setPopup] = useState<{ headline: string; message: string } | null>(null);
   const [progress, setProgress] = useState<string>('none');
-  const [jobDescription, setJobDescription] = useState<string | null>(null);
-  const [_jobLoading, setJobLoading] = useState(true);
   const [flipped, setFlipped] = useState(Array(steps.length).fill(false));
   const { user, loading: userloading } = useAuth();
   const catchUp = useCatchUp(!!user);
-
-  const fetchJobDescription = useCallback(
-    async (userData: typeof user) => {
-      if (!userData?.group_id || !userData?.class) {
-        setJobDescription(null);
-        setJobLoading(false);
-        return;
-      }
-
-      try {
-        setJobLoading(true);
-        const response = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${userData.group_id}/${userData.class}`,
-          { credentials: 'include' }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setJobDescription(data.job);
-        } else if (response.status === 404) {
-          setJobDescription(null);
-        } else {
-          console.error('Error fetching job description:', response.statusText);
-          setJobDescription(null);
-        }
-      } catch (error) {
-        console.error('Error fetching job description:', error);
-        setJobDescription(null);
-      } finally {
-        setJobLoading(false);
-      }
-    },
-    [user?.group_id, user?.class]
-  );
+  // The title alone decides which steps unlock; the hook also refetches it
+  // when the professor changes the job.
+  const { job, refetch: refetchJob } = useJobDescription(user, {
+    includeFile: false,
+    refetchOnJobUpdated: true,
+  });
+  const jobDescription = job?.title ?? null;
 
   const refreshDashboardUI = useCallback(async () => {
     if (!user) return;
 
     try {
-      // Inline the job description fetch
-      const jobResponse = await fetch(
-        `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-        { credentials: 'include' }
-      );
-      if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
-        setJobDescription(jobData.job);
-      }
-
       // Inline the progress fetch
       const progressResponse = await fetch(`${API_BASE_URL}/progress/user/${user.email}`, {
         credentials: 'include',
@@ -142,7 +104,6 @@ const Dashboard = () => {
     if (!user) return;
 
     const loadDashboardData = async () => {
-      await fetchJobDescription(user);
       const currentProgress = await fetchProgress(user);
       setProgress(currentProgress);
       localStorage.setItem('progress', currentProgress);
@@ -161,7 +122,7 @@ const Dashboard = () => {
       socket.emit('joinGroup', roomId);
       // A jobUpdated sent while this socket was down went to a room it was not
       // in. Re-read the job and progress so the dashboard is not left stale.
-      await fetchJobDescription(user);
+      await refetchJob();
       const currentProgress = await fetchProgress(user);
       setProgress(currentProgress);
       localStorage.setItem('progress', currentProgress);
@@ -223,7 +184,7 @@ const Dashboard = () => {
         localStorage.setItem('progress', 'job_description');
       }
 
-      // Refresh the entire dashboard (this will fetch the new job description)
+      // Refresh progress; useJobDescription refetches the new job itself.
       await refreshDashboardUI();
 
       // Reset all flipped cards
