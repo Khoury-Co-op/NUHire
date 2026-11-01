@@ -429,8 +429,8 @@ export default function MakeOffer() {
     fetchResumes();
   }, [candidates]);
 
-  const groupInterviewsByCandidate = (interviews: any[]) => {
-    const grouped: { [candidate_id: number]: any[] } = {};
+  const groupInterviewsByCandidate = (interviews: InterviewRating[]) => {
+    const grouped: Record<number, InterviewRating[]> = {};
     for (const interview of interviews) {
       const id = interview.candidate_id;
       if (!grouped[id]) {
@@ -457,7 +457,7 @@ export default function MakeOffer() {
           voteData[candidateId][rating] += interview[RATING_COLUMN[rating]];
         });
 
-        checkboxData[candidateId] = checkboxData[candidateId] || interview.checked;
+        checkboxData[candidateId] = checkboxData[candidateId] || interview.checked === 1;
       });
     }
 

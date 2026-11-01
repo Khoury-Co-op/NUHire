@@ -84,7 +84,9 @@ export interface Resume {
   checked: DbBool;
 }
 
-/** A row of `InterviewPage`: one student's ratings of one candidate. */
+/** A row of `InterviewPage`: one student's ratings of one candidate.
+ *  `checked` is the shortlist tick makeOffer restores; the column has no
+ *  NOT NULL, so it can come back null. */
 export interface InterviewRating {
   student_id: number;
   group_id: number;
@@ -94,6 +96,7 @@ export interface InterviewRating {
   question2: number;
   question3: number;
   question4: number;
+  checked: DbBool | null;
 }
 
 /** A row of `Candidates`. */
