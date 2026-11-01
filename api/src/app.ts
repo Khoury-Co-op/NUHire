@@ -38,7 +38,7 @@ export class App {
   public app: Application;
   public server: HTTPServer;
   public io: SocketIOServer;
-  private sessionStore: any;
+  private sessionStore?: session.Store;
   public onlineStudents: Record<string, string> = {};
 
   constructor(

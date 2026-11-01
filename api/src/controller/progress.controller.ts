@@ -1,13 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool, ResultSetHeader, RowDataPacket } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import { emitToClassModerators } from '../config/socket';
 import { STEP_ORDER, isStep, decideStep } from '../config/steps';
 
 export class ProgressController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   getProgressByGroup = (req: AuthRequest, res: Response): void => {
