@@ -24,6 +24,8 @@ export default tseslint.config(
       '**/*.d.ts',
       'frontend/public/**',
       'docs/archive/**',
+      // The Prisma client `prisma generate` writes. Not committed.
+      'api/src/generated/**',
       // Cloud-sync conflict copies, e.g. "page 2.tsx". Same exclusion as
       // frontend/tsconfig.json.
       '**/* [0-9].*',
@@ -58,6 +60,33 @@ export default tseslint.config(
       'frontend/*.config.js',
     ],
     languageOptions: { globals: globals.node },
+  },
+  {
+    // Data access lives in api/src/repository. Keeping Prisma's generated types
+    // there too means a column Prisma reads differently from mysql2, such as a
+    // tinyint(1) arriving as a boolean, is mapped back in one place rather than
+    // in every controller that touches it.
+    files: ['api/src/**/*.ts'],
+    ignores: ['api/src/repository/**', 'api/src/config/database.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/generated/prisma',
+                '**/generated/prisma/**',
+                '@prisma/client',
+                '@prisma/client/**',
+              ],
+              message:
+                'Query through a repository in api/src/repository instead of the Prisma client.',
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ['frontend/**/*.{ts,tsx,js,jsx}'],
