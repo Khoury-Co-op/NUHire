@@ -14,6 +14,7 @@
 
 import mysql, { Pool, PoolOptions } from 'mysql2';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import type { ITXClientDenyList } from '@prisma/client/runtime/client';
 import { PrismaClient } from '../generated/prisma/client';
 
 /**
@@ -190,6 +191,15 @@ function createPrismaClient(settings: typeof POOL_DEFAULTS) {
 }
 
 export type PrismaDb = ReturnType<typeof createPrismaClient>;
+
+/**
+ * What a repository queries through: the shared client, or the one
+ * `$transaction` hands its callback. Repositories take this rather than
+ * `PrismaDb`, so the same methods also run inside a transaction. The exception
+ * is a repository with a method that opens a transaction itself: it takes
+ * `PrismaDb`, because a transaction client cannot open another one.
+ */
+export type DbClient = Omit<PrismaDb, ITXClientDenyList>;
 
 export class DatabaseService {
   private pool: Pool | null = null;

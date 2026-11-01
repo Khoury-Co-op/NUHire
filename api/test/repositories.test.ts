@@ -1,0 +1,57 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { DbClient } from '../src/config/database';
+import { createFactsRepository } from '../src/repository/facts.repository';
+import { createModeratorRepository } from '../src/repository/moderator.repository';
+import { createNotesRepository } from '../src/repository/notes.repository';
+
+// The controllers are tested against fake repositories, so these check the
+// other half: each repository asks Prisma for the right rows.
+
+const PROF = 'prof@northeastern.edu';
+
+describe('moderator repository', () => {
+  function withModerator(adminEmail: string | null) {
+    const findUnique = vi.fn(async () => (adminEmail ? { admin_email: adminEmail } : null));
+    const db = { moderator: { findUnique } } as unknown as DbClient;
+    return { moderators: createModeratorRepository(db), findUnique };
+  }
+
+  it('says a professor teaches the class on their Moderator row', async () => {
+    const { moderators, findUnique } = withModerator(PROF);
+    expect(await moderators.teaches(PROF, 101)).toBe(true);
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { crn: 101 } }));
+  });
+
+  it("says no for another professor's class", async () => {
+    const { moderators } = withModerator('other@northeastern.edu');
+    expect(await moderators.teaches(PROF, 101)).toBe(false);
+  });
+
+  it('says no for a class with no Moderator row', async () => {
+    const { moderators } = withModerator(null);
+    expect(await moderators.teaches(PROF, 101)).toBe(false);
+  });
+});
+
+describe('facts repository', () => {
+  it("reads one class's facts by its id", async () => {
+    const findUnique = vi.fn(async () => null);
+    const db = { waitingFacts: { findUnique } } as unknown as DbClient;
+    expect(await createFactsRepository(db).findByClass(101)).toBeNull();
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { class_id: 101 } }));
+  });
+});
+
+describe('notes repository', () => {
+  it("lists only the caller's notes, newest first", async () => {
+    const findMany = vi.fn(async () => []);
+    const db = { notes: { findMany } } as unknown as DbClient;
+    await createNotesRepository(db).listForUser('student@northeastern.edu');
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { user_email: 'student@northeastern.edu' },
+        orderBy: { created_at: 'desc' },
+      })
+    );
+  });
+});
