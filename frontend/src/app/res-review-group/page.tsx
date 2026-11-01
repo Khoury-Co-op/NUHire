@@ -220,7 +220,7 @@ export default function ResReviewGroup() {
 
         setResumes(formatted);
       } catch (error) {
-        console.error('❌ [INITIAL-FETCH] Error:', error);
+        console.error('Error:', error);
       }
     };
 
@@ -338,7 +338,7 @@ export default function ResReviewGroup() {
           localStorage.setItem('progress', 'interview');
           window.location.href = targetPage;
         } catch (err) {
-          console.error('[handleMoveGroup] Error:', err);
+          console.error('Error:', err);
         }
       }
     };
@@ -354,7 +354,7 @@ export default function ResReviewGroup() {
           .then((data) => {
             setGroupSize(data.count);
           })
-          .catch((err) => console.error('❌ [STUDENT-ADDED] Failed to fetch group size:', err));
+          .catch((err) => console.error('Failed to fetch group size:', err));
       }
     };
 

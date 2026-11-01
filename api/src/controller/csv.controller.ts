@@ -52,7 +52,7 @@ export class CSVController {
             // This rejection reason is returned to the browser in `failed[]`,
             // so err.message would put MySQL's table and column names on the
             // professor's roster-import screen. The real error stays in the log.
-            console.error(`❌ Database error for ${email}:`, err);
+            console.error(`Database error for ${email}:`, err);
             reject({ email, error: 'Failed to assign this student' });
           } else {
             resolve({

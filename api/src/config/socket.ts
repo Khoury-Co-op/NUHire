@@ -479,7 +479,7 @@ export function initializeSocketHandlers(io: SocketIOServer, db: Pool): Record<s
               }
             });
           } else {
-            console.log('No online students in the selected groups.');
+            console.info('No online students in the selected groups.');
           }
         });
       }
