@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool, RowDataPacket } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import { dbErrorStatus } from '../config/database';
 import { gateMemberIds } from '../config/socket';
 import { User } from '../models/User';
@@ -19,7 +20,7 @@ const sessionStudent = (req: AuthRequest): SessionStudent | null => {
 export class InterviewController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   submitVote = (req: AuthRequest, res: Response): void => {

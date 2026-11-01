@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { User, isAdmin } from '../models/User';
 import { Pool, RowDataPacket } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import { PoolConnection } from 'mysql2/promise';
 import {
   RES_REVIEW_BARRIER_STEP,
@@ -22,7 +23,7 @@ const RESTAMP_ON_MOVE = 'present_at = IF(present_at IS NULL, NULL, ?)';
 export class GroupController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   // Re-evaluate a group's barrier after its roster changed, and release the
