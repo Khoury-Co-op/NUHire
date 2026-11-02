@@ -2,12 +2,13 @@ import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { isAdmin } from '../models/User';
 import { Pool, RowDataPacket } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import { emitToClassModerators, markPresent } from '../config/socket';
 
 export class UserController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
