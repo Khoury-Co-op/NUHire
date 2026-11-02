@@ -5,6 +5,9 @@ import { InterviewController } from '../src/controller/interview.controller';
 import { UserController } from '../src/controller/user.controller';
 import type { AuthRequest } from '../src/models/AuthRequest';
 
+// dbNow()'s shape: a TIMESTAMP literal in UTC with whole seconds.
+const DB_NOW = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
 // The frontend gates compare a count against GET /interview/group-size. When
 // that size counted only present students and nobody had been stamped, it was
 // 0 and every `count >= size` gate opened. When the finished count included
@@ -222,7 +225,7 @@ describe('POST /users/update-currentpage attendance', () => {
     });
     expect(stamps(calls)).toHaveLength(1);
     expect(stamps(calls)[0].sql).toMatch(/present_at IS NULL/);
-    expect(stamps(calls)[0].params).toEqual([8]);
+    expect(stamps(calls)[0].params).toEqual([expect.stringMatching(DB_NOW), 8]);
   });
 
   it('does not write again once the student is stamped', async () => {
