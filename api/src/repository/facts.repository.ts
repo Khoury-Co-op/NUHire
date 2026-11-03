@@ -1,5 +1,6 @@
 import { DbClient } from '../config/database';
 import { WaitingFacts } from '../models/WaitingFacts';
+import { withUniqueRetry } from './writes';
 
 export interface FactsRepository {
   /** null for a class that has never saved any. */
@@ -17,12 +18,13 @@ export function createFactsRepository(db: DbClient): FactsRepository {
       }),
 
     save: async (classId, { one, two, three }) => {
-      // One statement, as before. On MySQL Prisma's upsert is a SELECT and then
-      // an INSERT or UPDATE, so two first saves for a class can both insert and
-      // one fails on the primary key. OAS-213 replaces this with a retried upsert.
-      await db.$executeRaw`
-        INSERT INTO WaitingFacts (class_id, one, two, three) VALUES (${classId}, ${one}, ${two}, ${three})
-        ON DUPLICATE KEY UPDATE one = ${one}, two = ${two}, three = ${three}`;
+      await withUniqueRetry(() =>
+        db.waitingFacts.upsert({
+          where: { class_id: classId },
+          create: { class_id: classId, one, two, three },
+          update: { one, two, three },
+        })
+      );
     },
   };
 }

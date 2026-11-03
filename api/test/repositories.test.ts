@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbClient } from '../src/config/database';
+import { Prisma } from '../src/generated/prisma/client';
 import { createFactsRepository } from '../src/repository/facts.repository';
 import { createModeratorRepository } from '../src/repository/moderator.repository';
 import { createNotesRepository } from '../src/repository/notes.repository';
@@ -39,6 +40,22 @@ describe('facts repository', () => {
     const db = { waitingFacts: { findUnique } } as unknown as DbClient;
     expect(await createFactsRepository(db).findByClass(101)).toBeNull();
     expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { class_id: 101 } }));
+  });
+
+  it('saves all three facts with an upsert, retried when a first save races another', async () => {
+    const raced = new Prisma.PrismaClientKnownRequestError('raced', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    const upsert = vi.fn().mockRejectedValueOnce(raced).mockResolvedValueOnce({});
+    const db = { waitingFacts: { upsert } } as unknown as DbClient;
+    await createFactsRepository(db).save(101, { one: 'a', two: null, three: 'c' });
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledWith({
+      where: { class_id: 101 },
+      create: { class_id: 101, one: 'a', two: null, three: 'c' },
+      update: { one: 'a', two: null, three: 'c' },
+    });
   });
 });
 
