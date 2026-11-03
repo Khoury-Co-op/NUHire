@@ -173,8 +173,10 @@ In a repository, a Prisma transaction lives inside one repository method as
 `db.$transaction(async (tx) => { ... })`, and that method may touch several
 tables. Run every query in it on `tx`: one on `db` runs outside the transaction.
 A transaction client cannot open another transaction, so a repository with such
-a method takes `PrismaDb` rather than `DbClient`. The mysql2 example above stays
-until the last mysql2 query is gone.
+a method takes `PrismaDb` rather than `DbClient`. A transaction that writes
+goes inside `withUniqueRetry` whole, as the write patterns under "How code
+should look here" say. The mysql2 example above stays until the last mysql2
+query is gone.
 
 ### 7. Parameterize every query
 
@@ -304,6 +306,23 @@ of the existing code does not look like this yet; do not copy it.
   `api/src/repository/<area>.repository.ts`. It returns the shapes in
   `api/src/models/` and keeps Prisma's generated types to itself. A
   group-scoped method takes `{ groupId, classId }` together.
+- **A write two requests can race uses `api/src/repository/writes.ts`.**
+  Prisma's `upsert` on MySQL is a SELECT and then an INSERT or UPDATE, so two
+  first writes at once can both choose INSERT, and one fails. Never a bare
+  `upsert`. Translating today's SQL:
+  - `ON DUPLICATE KEY UPDATE col = VALUES(col)` becomes
+    `withUniqueRetry(() => upsert(...))`. For `col = col + VALUES(col)`, put
+    `{ increment: n }` in `update`
+  - `INSERT IGNORE`, and `ON DUPLICATE KEY UPDATE col = col`, become
+    `insertIfAbsent(model, row)`
+  - `ON DUPLICATE KEY UPDATE x = IF(...)` becomes
+    `compareAndSet(model, { where, when, create, update })`, with the `IF`
+    condition in `when`
+  - in a transaction, wrap the whole `$transaction` call in `withUniqueRetry`,
+    never an upsert inside it. A retry inside reads the transaction's snapshot,
+    which still has no row, and fails again
+  - check a new or changed write with `npm run races`, and add a case for it
+    under `.local/tests/races/cases/`
 - **`async`/`await`, never callbacks.** In code still on mysql2, use
   `db.promise().query<RowDataPacket[]>(...)`, or a checked-out connection for a
   transaction (rule 6). No new `db.query(sql, params, (err, rows) => ...)`, and
@@ -364,6 +383,8 @@ or you have not tested it. The built-in accounts only go as far as three
 students; `npm run seed` builds a 30-student class when you need the real size,
 and `npm run load` walks that whole class through the activity at once, which is
 the check for barrier and socket changes (see `.local/tests/README.md`).
+`npm run races` is the check for a write that must be atomic: it fires 30
+concurrent first writes at each one and fails if any is lost.
 
 ## Before you open a PR
 
