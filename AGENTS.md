@@ -239,6 +239,7 @@ that directory's README first; it also explains why a migration that adds a
 constraint has to clean up the rows violating it.
 
 dbmate owns the schema, and Prisma only reads it. After adding a migration, run
+`npm run db:migrate` to apply it to your local database, then run
 `npm run db:pull` and commit `api/prisma/schema.prisma` in the same commit.
 Never run `prisma migrate` or `prisma db push`, and never hand-edit
 `schema.prisma`, because the next `db pull` rewrites it.
