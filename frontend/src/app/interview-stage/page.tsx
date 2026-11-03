@@ -340,7 +340,7 @@ export default function Interview() {
         try {
           await updateProgress(user, 'offer');
         } catch (err) {
-          console.error('Error updating progress:', err);
+          console.error('Error updating progress while moving group:', err);
         }
         localStorage.setItem('progress', 'offer');
         window.location.href = targetPage;

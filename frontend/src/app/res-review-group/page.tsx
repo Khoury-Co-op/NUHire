@@ -220,7 +220,7 @@ export default function ResReviewGroup() {
 
         setResumes(formatted);
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Error fetching initial data:', error);
       }
     };
 
@@ -338,7 +338,7 @@ export default function ResReviewGroup() {
           localStorage.setItem('progress', 'interview');
           window.location.href = targetPage;
         } catch (err) {
-          console.error('Error:', err);
+          console.error('Error moving group:', err);
         }
       }
     };

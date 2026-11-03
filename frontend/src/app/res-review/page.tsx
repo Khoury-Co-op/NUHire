@@ -405,7 +405,7 @@ export default function ResumesPage() {
         try {
           await updateProgress(user, 'res_2');
         } catch (err) {
-          console.error('Error updating progress:', err);
+          console.error('Error updating progress while moving group:', err);
         }
         localStorage.setItem('progress', 'res_2');
         // The saved counters used to be dropped when the tenth decision landed.
@@ -738,17 +738,17 @@ export default function ResumesPage() {
   // barrier stayed shut. Each decision is written as it is cast instead.
   const sendVoteToBackend = async (vote: 'yes' | 'no' | 'unanswered') => {
     if (!user || !user.id || !user.group_id || !user.class) {
-      console.error('Missing user data');
+      console.error('Missing user data, vote not saved');
       return;
     }
 
     if (timeSpent < 0) {
-      console.error('Invalid time spent:', timeSpent);
+      console.error('Invalid time spent, vote not saved:', timeSpent);
       return;
     }
 
     if (currentResumeIndex < 0) {
-      console.error('Invalid resume index:', currentResumeIndex);
+      console.error('Invalid resume index, vote not saved:', currentResumeIndex);
       return;
     }
 

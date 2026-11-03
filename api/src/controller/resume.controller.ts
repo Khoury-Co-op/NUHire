@@ -33,7 +33,7 @@ export class ResumeController {
 
     this.db.query(query, [group_id, class_id], (err, results: any[]) => {
       if (err) {
-        console.error('Database error:', err);
+        console.error('Database error reading finished count:', err);
         res.status(500).json({ error: 'Database error' });
         return;
       }
