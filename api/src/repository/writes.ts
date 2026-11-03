@@ -22,10 +22,11 @@ function isWriteConflict(err: unknown): boolean {
  * By the second try the winner's row is committed, so an upsert takes its
  * UPDATE path. Every upsert goes through this.
  *
- * Wrap a single upsert, or a whole `$transaction` call. Never wrap an upsert
- * inside a transaction: the retry reads the transaction's snapshot, which still
- * has no row, and fails the same way. Rerunning the whole transaction starts a
- * new snapshot.
+ * Wrap a single upsert or compareAndSet, or a whole `$transaction` call. Never
+ * wrap a write inside a transaction: the retry reads the transaction's
+ * snapshot, which still has no row, and fails the same way. After a deadlock
+ * MySQL has already rolled the transaction back, so a retry there commits on
+ * its own. Rerunning the whole transaction starts a new snapshot.
  */
 export async function withUniqueRetry<T>(write: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
@@ -60,7 +61,7 @@ export async function insertIfAbsent<Row>(
 
 /** The part of a Prisma model that compareAndSet uses. */
 interface CompareAndSetModel<Key, Where, Create, Update> {
-  count(args: { where: Key }): PromiseLike<number>;
+  findUnique(args: { where: Key }): PromiseLike<unknown>;
   create(args: { data: Create }): PromiseLike<unknown>;
   updateMany(args: { where: { AND: Where[] }; data: Update }): PromiseLike<{ count: number }>;
 }
@@ -72,34 +73,65 @@ export type CompareAndSetResult = 'created' | 'updated' | 'unchanged';
  * if no row has its key. Otherwise applies `update` only if the row matches
  * `when`, in one UPDATE, so two racing writers cannot both pass the check.
  *
- * `where` is the row's whole unique key, as plain columns. It is checked:
- * matching more than one row throws rather than updating them all.
+ * `key` is the row's unique key in the form `findUnique` takes, such as
+ * `{ class_id_group_id: { class_id, group_id } }`, so a key missing a column
+ * fails tsc. Conditions go in `when`, never in `key`.
+ *
+ * Like an upsert, it goes inside `withUniqueRetry`, or inside a transaction
+ * that is. It does not retry by itself: inside a transaction a deadlock has
+ * already rolled back everything before it, and a retry there would commit on
+ * its own.
  */
-export function compareAndSet<Key, Where, Create, Update>(
+export async function compareAndSet<Key, Where, Create, Update>(
   model: CompareAndSetModel<Key, Where, Create, Update>,
   args: {
-    where: NoInfer<Key & Where>;
+    key: NoInfer<Key>;
     when: NoInfer<Where>;
     create: NoInfer<Create>;
     update: NoInfer<Update>;
   }
 ): Promise<CompareAndSetResult> {
+  const keyFilter = keyColumns(args.key) as Where;
   // Read first, as Prisma's upsert does. Inserting first and updating on a
   // duplicate deadlocks inside a transaction: every loser holds a shared lock
   // on the winner's row and then waits for an exclusive one.
-  return withUniqueRetry(async () => {
-    const matching = await model.count({ where: args.where });
-    if (matching > 1) {
-      throw new Error(`compareAndSet: where matched ${matching} rows; it must name a unique key`);
-    }
-    if (matching === 0) {
-      await model.create({ data: args.create });
-      return 'created';
-    }
-    const { count } = await model.updateMany({
-      where: { AND: [args.where, args.when] },
-      data: args.update,
-    });
-    return count > 0 ? 'updated' : 'unchanged';
+  if ((await model.findUnique({ where: args.key })) === null) {
+    await model.create({ data: args.create });
+    return 'created';
+  }
+  // updateMany rather than update: when another writer changes the row between
+  // Prisma's read and its UPDATE, update() still returns the row as if it had
+  // written it, and only updateMany's count says it did not.
+  const { count } = await model.updateMany({
+    where: { AND: [keyFilter, args.when] },
+    data: args.update,
   });
+  if (count > 0) {
+    return 'updated';
+  }
+  // Nothing matched: either the row fails `when`, or it was deleted since the
+  // read, as assigning a job deletes a group's offer.
+  if ((await model.findUnique({ where: args.key })) !== null) {
+    return 'unchanged';
+  }
+  await model.create({ data: args.create });
+  return 'created';
+}
+
+/**
+ * The key as plain columns, which is what updateMany takes. A key is one
+ * column, `{ email }`, or Prisma's compound form,
+ * `{ class_id_group_id: { class_id, group_id } }`, which is unwrapped.
+ */
+function keyColumns(key: unknown): object {
+  const entries = typeof key === 'object' && key !== null ? Object.entries(key) : [];
+  if (entries.length !== 1) {
+    throw new Error('compareAndSet: key must be the unique key alone; put conditions in when');
+  }
+  const [[column, value]] = entries;
+  const compound =
+    typeof value === 'object' &&
+    value !== null &&
+    Object.getPrototypeOf(value) === Object.prototype;
+  return compound ? value : { [column]: value };
 }

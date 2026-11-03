@@ -17,7 +17,7 @@ const upsertFacts = (db, classId, i) =>
 // while the offer is pending or rejected, so an accepted offer stays put.
 const submitOffer = (compareAndSet, db, classId, i) =>
   compareAndSet(db.offers, {
-    where: { class_id: classId, group_id: 1 },
+    key: { class_id_group_id: { class_id: classId, group_id: 1 } },
     when: { status: { in: ['pending', 'rejected'] } },
     create: { class_id: classId, group_id: 1, candidate_id: i },
     update: { candidate_id: i, status: 'pending' },
@@ -86,8 +86,14 @@ export default {
       ],
     },
     {
-      name: 'compareAndSet: a group submits its first offer',
+      name: 'control: a bare compareAndSet',
+      control: 'it does not retry by itself, so it goes inside withUniqueRetry like an upsert',
       write: ({ db, writes }, classId, i) => submitOffer(writes.compareAndSet, db, classId, i),
+    },
+    {
+      name: 'compareAndSet: a group submits its first offer',
+      write: ({ db, writes }, classId, i) =>
+        writes.withUniqueRetry(() => submitOffer(writes.compareAndSet, db, classId, i)),
       check: async ({ db }, classId, labels) => {
         const rows = await db.offers.count({ where: { class_id: classId } });
         return [
@@ -102,7 +108,8 @@ export default {
         db.offers.create({
           data: { class_id: classId, group_id: 1, candidate_id: 999, status: 'accepted' },
         }),
-      write: ({ db, writes }, classId, i) => submitOffer(writes.compareAndSet, db, classId, i),
+      write: ({ db, writes }, classId, i) =>
+        writes.withUniqueRetry(() => submitOffer(writes.compareAndSet, db, classId, i)),
       check: async ({ db }, classId, labels) => {
         const offer = await db.offers.findFirst({ where: { class_id: classId } });
         const intact = offer?.candidate_id === 999 && offer?.status === 'accepted';

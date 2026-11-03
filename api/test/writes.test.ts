@@ -57,21 +57,22 @@ describe('insertIfAbsent', () => {
 });
 
 describe('compareAndSet', () => {
-  type Where = { id?: number; status?: string };
-  type Row = { id: number; status: string; value: number };
+  type Key = { id?: number; class_id_group_id?: { class_id: number; group_id: number } };
+  type Where = { class_id?: number; group_id?: number; id?: number; status?: string };
+  type Row = { class_id: number; group_id: number; status: string; value: number };
 
   const ARGS = {
-    where: { id: 1 },
+    key: { class_id_group_id: { class_id: 7, group_id: 2 } },
     when: { status: 'open' },
-    create: { id: 1, status: 'open', value: 5 },
+    create: { class_id: 7, group_id: 2, status: 'open', value: 5 },
     update: { value: 5 },
   };
 
-  // `existing` is how many rows match `where`, one answer per read.
-  function fakeModel(existing: number[], updated = 1) {
-    const counts = [...existing];
+  // `found` is whether a row has the key, one answer per read.
+  function fakeModel(found: boolean[], updated = 1) {
+    const reads = [...found];
     return {
-      count: vi.fn(async (_args: { where: Where }) => counts.shift() ?? 0),
+      findUnique: vi.fn(async (_args: { where: Key }) => (reads.shift() ? {} : null)),
       create: vi.fn(async (_args: { data: Row }) => ({})),
       updateMany: vi.fn(async (_args: { where: { AND: Where[] }; data: Partial<Row> }) => ({
         count: updated,
@@ -80,37 +81,60 @@ describe('compareAndSet', () => {
   }
 
   it('creates the row when none has its key', async () => {
-    const model = fakeModel([0]);
+    const model = fakeModel([false]);
     expect(await compareAndSet(model, ARGS)).toBe('created');
+    expect(model.findUnique).toHaveBeenCalledWith({ where: ARGS.key });
     expect(model.create).toHaveBeenCalledWith({ data: ARGS.create });
     expect(model.updateMany).not.toHaveBeenCalled();
   });
 
-  it('updates the row in one statement that also checks the condition', async () => {
-    const model = fakeModel([1]);
+  it('updates in one statement that checks the key as plain columns and the condition', async () => {
+    const model = fakeModel([true]);
     expect(await compareAndSet(model, ARGS)).toBe('updated');
     expect(model.updateMany).toHaveBeenCalledWith({
-      where: { AND: [{ id: 1 }, { status: 'open' }] },
+      where: { AND: [{ class_id: 7, group_id: 2 }, { status: 'open' }] },
       data: { value: 5 },
     });
     expect(model.create).not.toHaveBeenCalled();
   });
 
+  it('passes a one-column key through as it is', async () => {
+    const model = fakeModel([true]);
+    await compareAndSet(model, { ...ARGS, key: { id: 3 } });
+    expect(model.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { AND: [{ id: 3 }, { status: 'open' }] } })
+    );
+  });
+
   it('leaves a row that fails the condition alone', async () => {
-    const model = fakeModel([1], 0);
+    const model = fakeModel([true, true], 0);
     expect(await compareAndSet(model, ARGS)).toBe('unchanged');
+    expect(model.create).not.toHaveBeenCalled();
   });
 
-  it('updates instead when another writer creates the row first', async () => {
-    const model = fakeModel([0, 1]);
+  it('creates the row when it was deleted between the read and the update', async () => {
+    const model = fakeModel([true, false], 0);
+    expect(await compareAndSet(model, ARGS)).toBe('created');
+    expect(model.create).toHaveBeenCalledWith({ data: ARGS.create });
+  });
+
+  it('does not retry by itself, so a lost race reaches the caller', async () => {
+    const model = fakeModel([false]);
     model.create.mockRejectedValueOnce(prismaError('P2002'));
-    expect(await compareAndSet(model, ARGS)).toBe('updated');
-    expect(model.count).toHaveBeenCalledTimes(2);
+    await expect(compareAndSet(model, ARGS)).rejects.toMatchObject({ code: 'P2002' });
+    expect(model.findUnique).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses a where that matches more than one row', async () => {
-    const model = fakeModel([2]);
-    await expect(compareAndSet(model, ARGS)).rejects.toThrow(/unique key/);
-    expect(model.updateMany).not.toHaveBeenCalled();
+  it('updates once withUniqueRetry reruns it after another writer created the row', async () => {
+    const model = fakeModel([false, true]);
+    model.create.mockRejectedValueOnce(prismaError('P2002'));
+    expect(await withUniqueRetry(() => compareAndSet(model, ARGS))).toBe('updated');
+  });
+
+  it('refuses a key with a condition beside it', async () => {
+    const model = fakeModel([true]);
+    const key = { id: 3, class_id_group_id: { class_id: 7, group_id: 2 } };
+    await expect(compareAndSet(model, { ...ARGS, key })).rejects.toThrow(/unique key alone/);
+    expect(model.findUnique).not.toHaveBeenCalled();
   });
 });

@@ -309,18 +309,22 @@ of the existing code does not look like this yet; do not copy it.
 - **A write two requests can race uses `api/src/repository/writes.ts`.**
   Prisma's `upsert` on MySQL is a SELECT and then an INSERT or UPDATE, so two
   first writes at once can both choose INSERT, and one fails. Never a bare
-  `upsert`. Translating today's SQL:
+  `upsert` or `compareAndSet`. Translating today's SQL:
   - `ON DUPLICATE KEY UPDATE col = VALUES(col)` becomes
     `withUniqueRetry(() => upsert(...))`. For `col = col + VALUES(col)`, put
     `{ increment: n }` in `update`
   - `INSERT IGNORE`, and `ON DUPLICATE KEY UPDATE col = col`, become
     `insertIfAbsent(model, row)`
   - `ON DUPLICATE KEY UPDATE x = IF(...)` becomes
-    `compareAndSet(model, { where, when, create, update })`, with the `IF`
-    condition in `when`
+    `withUniqueRetry(() => compareAndSet(model, { key, when, create, update }))`.
+    `key` is the unique key as `findUnique` takes it, such as
+    `{ class_id_group_id: { class_id, group_id } }`, and the `IF` condition
+    goes in `when`
   - in a transaction, wrap the whole `$transaction` call in `withUniqueRetry`,
-    never an upsert inside it. A retry inside reads the transaction's snapshot,
-    which still has no row, and fails again
+    never a write inside it. A retry inside reads the transaction's snapshot,
+    which still has no row, and fails again. After a deadlock it is worse:
+    MySQL has already rolled the transaction back, so the retry commits on its
+    own and the rest of the transaction is lost
   - check a new or changed write with `npm run races`, and add a case for it
     under `.local/tests/races/cases/`
 - **`async`/`await`, never callbacks.** In code still on mysql2, use
