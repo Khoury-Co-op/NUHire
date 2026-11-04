@@ -5,13 +5,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
 
 export class ResumeController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   getFinishedCount = (req: AuthRequest, res: Response): void => {

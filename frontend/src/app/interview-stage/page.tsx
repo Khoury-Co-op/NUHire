@@ -11,6 +11,7 @@ import RatingSlider from '../components/ratingSlider';
 import Popup from '../components/popup';
 import axios from 'axios';
 import { useAuth } from '../components/AuthContext';
+import { useJobDescription } from '../components/useJobDescription';
 import { useProgressManager } from '../components/progress';
 import { useInterviewProgress } from '../components/useInterviewProgress';
 import Facts from '../components/facts';
@@ -57,7 +58,7 @@ export default function Interview() {
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('video');
-  const [jobDescPath, setJobDescPath] = useState('');
+  const jobDescPath = useJobDescription(user).job?.filePath ?? '';
   const [jobDescNumPages, setJobDescNumPages] = useState<number | null>(null);
   const [jobDescPageNumber, setJobDescPageNumber] = useState(1);
   const [resumeNumPages, setResumeNumPages] = useState<number | null>(null);
@@ -110,36 +111,6 @@ export default function Interview() {
   const [groupSubmissions, setGroupSubmissions] = useState(0);
   const [groupSize, setGroupSize] = useState(0);
   const [groupFinished, setGroupFinished] = useState(false);
-
-  // Fetch job description for the group
-  useEffect(() => {
-    const fetchJobDescription = async () => {
-      if (!user?.group_id || !user?.class) return;
-
-      try {
-        const assignmentResponse = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-          { credentials: 'include' }
-        );
-        const assignmentData = await assignmentResponse.json();
-
-        if (assignmentData.job) {
-          const jobResponse = await fetch(
-            `${API_BASE_URL}/jobs/title?title=${encodeURIComponent(assignmentData.job)}&class_id=${user.class}`,
-            { credentials: 'include' }
-          );
-          const jobData = await jobResponse.json();
-          if (jobData.file_path) {
-            setJobDescPath(jobData.file_path);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching job description:', error);
-      }
-    };
-
-    fetchJobDescription();
-  }, [user?.group_id, user?.class]);
 
   const fetchFinished = async () => {
     try {

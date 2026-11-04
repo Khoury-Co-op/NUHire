@@ -5,6 +5,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 import type { Pool as PromisePool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
@@ -124,7 +125,7 @@ const CLEARED_TABLES = [...GROUP_WORK_TABLES.map(({ table }) => table), 'Notes']
 export class JobController {
   constructor(
     private db: Pool,
-    private io: any,
+    private io: SocketIOServer,
     private onlineStudents: Record<string, string>
   ) {}
 

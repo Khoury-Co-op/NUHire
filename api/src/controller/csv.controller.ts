@@ -1,11 +1,12 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
 
 export class CSVController {
   constructor(
     private db: Pool,
-    private io: any
+    private io: SocketIOServer
   ) {}
 
   importCSV = (req: AuthRequest, res: Response): void => {

@@ -40,7 +40,7 @@ function fakeDb(roster: User[], slow?: unknown) {
   const db = {
     promise: () => ({
       query: async (sql: string, params: unknown[]) => {
-        if (sql.includes('present_at = CURRENT_TIMESTAMP')) return [{ affectedRows: 0 }];
+        if (sql.includes('SET present_at = ?')) return [{ affectedRows: 0 }];
         if (sql.includes('FROM Users') && sql.includes('email = ?')) {
           return [roster.filter((u) => u.email === params[0] && u.affiliation === 'student')];
         }

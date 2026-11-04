@@ -17,6 +17,23 @@ import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../generated/prisma/client';
 
 /**
+ * "Now" for the gate timestamps (`Users.present_at`, `Step_Completion.completed_at`,
+ * `GroupConfirmations.confirmed_at`), from the API's clock: UTC, cut to whole
+ * seconds. That is what MySQL's own clock writes into these TIMESTAMP(0)
+ * columns on a UTC server, and what Prisma writes for a Date, since it formats
+ * in UTC (MySQL would round the milliseconds Prisma sends, so they are dropped
+ * here). The gates compare these columns with each other, so every write has to
+ * come from one clock.
+ *
+ * It returns the literal rather than a Date on purpose: mysql2 formats a Date in
+ * the API host's local time zone, which lands hours away from MySQL's clock on
+ * any machine not running in UTC.
+ */
+export function dbNow(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
  * mysql2 keeps its pool bookkeeping in these three queues. They are not in the
  * published types, so /health/db reads them through this shape rather than
  * through `any`.
