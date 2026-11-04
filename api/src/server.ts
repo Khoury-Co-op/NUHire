@@ -22,7 +22,7 @@ function assertRequiredEnv(): void {
   const secret = process.env.SESSION_SECRET;
 
   if (!secret) {
-    console.error('❌ SESSION_SECRET is not set. Refusing to start with forgeable sessions.');
+    console.error('SESSION_SECRET is not set. Refusing to start with forgeable sessions.');
     console.error(
       "   Generate one: node -e \"console.log(require('crypto')" +
         ".randomBytes(32).toString('hex'))\""
@@ -32,7 +32,7 @@ function assertRequiredEnv(): void {
 
   if (secret.length < MIN_SESSION_SECRET_LENGTH) {
     console.error(
-      `❌ SESSION_SECRET is ${secret.length} characters; at least ${MIN_SESSION_SECRET_LENGTH} are required.`
+      `SESSION_SECRET is ${secret.length} characters; at least ${MIN_SESSION_SECRET_LENGTH} are required.`
     );
     process.exit(1);
   }
@@ -53,7 +53,7 @@ function warnIfScaledOut(): void {
   const instances = Number.parseInt(raw, 10);
   if (Number.isFinite(instances) && instances > 1) {
     console.error(
-      `❌ INSTANCE_COUNT=${instances}. This API only works as a single replica: group ` +
+      `INSTANCE_COUNT=${instances}. This API only works as a single replica: group ` +
         'membership lives in process memory and there is no Socket.IO adapter, so a ' +
         'group split across replicas misses its own events. Scale back to 1.'
     );
@@ -80,7 +80,7 @@ async function bootstrap() {
 
       db.query('SELECT 1', (err) => {
         if (err) {
-          console.error('❌ /health/db probe failed:', err);
+          console.error('/health/db probe failed:', err);
           res.status(dbErrorStatus(err)).json({ status: 'error', pool });
           return;
         }
@@ -101,7 +101,7 @@ async function bootstrap() {
     const PORT = parseInt(process.env.BACKEND_PORT || '10000', 10);
     app.listen(PORT);
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 }
@@ -111,13 +111,13 @@ async function bootstrap() {
 // that, so a single bad query could kill the API mid-class and drop every
 // socket. Log and keep serving instead.
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // An uncaught exception genuinely leaves the process in an undefined state, so
 // exiting is correct. Drain briefly first so in-flight responses can finish.
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception, shutting down in 5s:', error);
+  console.error('Uncaught Exception, shutting down in 5s:', error);
   setTimeout(() => process.exit(1), 5000).unref();
 });
 

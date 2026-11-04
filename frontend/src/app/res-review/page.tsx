@@ -152,12 +152,12 @@ export default function ResumesPage() {
 
       const missingPaths = data.filter((r: any) => !r.file_path);
       if (missingPaths.length > 0) {
-        console.warn(`⚠️ [FETCH] ${missingPaths.length} resumes are missing file_path!`);
+        console.warn(`${missingPaths.length} resumes are missing file_path!`);
       }
 
       setResumesList(data);
     } catch (error) {
-      console.error('❌ [FETCH] Error fetching resumes:', error);
+      console.error('Error fetching resumes:', error);
     }
   }, []);
 
@@ -172,7 +172,7 @@ export default function ResumesPage() {
         setGroupSize(data.count);
       }
     } catch (err) {
-      console.error('❌ [FETCH-GROUP-SIZE] Failed to fetch group size:', err);
+      console.error('Failed to fetch group size:', err);
     }
   };
 
@@ -190,7 +190,7 @@ export default function ResumesPage() {
         setGroupSubmissions(data.finishedCount);
       }
     } catch (err) {
-      console.error('❌ [FETCH-FINISHED] Failed to fetch finished count:', err);
+      console.error('Failed to fetch finished count:', err);
     }
   };
 
@@ -239,7 +239,7 @@ export default function ResumesPage() {
             record.class === user.class
         );
       } catch (error) {
-        console.error('❌ [RESTORE] Unreadable unsaved votes, discarding:', error);
+        console.error('Unreadable unsaved votes, discarding:', error);
         localStorage.removeItem(keys.unsaved);
       }
     }
@@ -377,7 +377,7 @@ export default function ResumesPage() {
         try {
           await updateProgress(user, 'res_2');
         } catch (err) {
-          console.error('[handleMoveGroup] Error updating progress:', err);
+          console.error('Error updating progress while moving group:', err);
         }
         localStorage.setItem('progress', 'res_2');
         // The saved counters used to be dropped when the tenth decision landed.
@@ -479,7 +479,7 @@ export default function ResumesPage() {
           row.group_id === userGroupId && row.class === userClass && shown.has(row.resume_number)
       );
     } catch (error) {
-      console.error('❌ [RESTORE] Failed to read saved decisions:', error);
+      console.error('Failed to read saved decisions:', error);
       return null;
     }
   }, [userId, userGroupId, userClass, resumesList]);
@@ -657,12 +657,12 @@ export default function ResumesPage() {
       });
 
       if (!response.ok) {
-        console.error('❌ [VOTE] Backend rejected vote:', response.status, response.statusText);
+        console.error('Backend rejected vote:', response.status, response.statusText);
         return false;
       }
       return true;
     } catch (error) {
-      console.error('❌ [VOTE] Network error saving vote:', error);
+      console.error('Network error saving vote:', error);
       return false;
     }
   }, []);
@@ -710,17 +710,17 @@ export default function ResumesPage() {
   // barrier stayed shut. Each decision is written as it is cast instead.
   const sendVoteToBackend = async (vote: 'yes' | 'no' | 'unanswered') => {
     if (!user || !user.id || !user.group_id || !user.class) {
-      console.error('❌ [VOTE] Missing user data');
+      console.error('Missing user data, vote not saved');
       return;
     }
 
     if (timeSpent < 0) {
-      console.error('❌ [VOTE] Invalid time spent:', timeSpent);
+      console.error('Invalid time spent, vote not saved:', timeSpent);
       return;
     }
 
     if (currentResumeIndex < 0) {
-      console.error('❌ [VOTE] Invalid resume index:', currentResumeIndex);
+      console.error('Invalid resume index, vote not saved:', currentResumeIndex);
       return;
     }
 
@@ -807,7 +807,7 @@ export default function ResumesPage() {
   const handleAccept = () => {
     if (maxDecisions) return;
     if (!user || userloading || resumeLoading) {
-      console.warn('⚠️ [ACTION] User data not ready or resume still loading, skipping vote');
+      console.warn('User data not ready or resume still loading, skipping vote');
       return;
     }
 
@@ -820,7 +820,7 @@ export default function ResumesPage() {
   const handleReject = () => {
     if (maxDecisions) return;
     if (!user || userloading || resumeLoading) {
-      console.warn('⚠️ [ACTION] User data not ready or resume still loading, skipping vote');
+      console.warn('User data not ready or resume still loading, skipping vote');
       return;
     }
     sendVoteToBackend('no');
@@ -832,7 +832,7 @@ export default function ResumesPage() {
   const handleNoResponse = () => {
     if (maxDecisions) return;
     if (!user || userloading || resumeLoading) {
-      console.warn('⚠️ [ACTION] User data not ready or resume still loading, skipping vote');
+      console.warn('User data not ready or resume still loading, skipping vote');
       return;
     }
     sendVoteToBackend('unanswered');

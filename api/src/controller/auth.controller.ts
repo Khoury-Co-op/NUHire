@@ -108,7 +108,7 @@ export class AuthController {
       const FRONT_URL = process.env.REACT_APP_FRONT_URL;
 
       if (!user || !user.email) {
-        console.error('❌ No user or email found after authentication');
+        console.error('No user or email found after authentication');
         res.redirect(`${FRONT_URL}/?error=no_user`);
         return;
       }

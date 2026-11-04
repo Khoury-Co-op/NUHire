@@ -123,7 +123,7 @@ export default function Interview() {
       setGroupSubmissions(newGroupSubmissions);
       setGroupFinished(groupSize > 0 && newGroupSubmissions >= groupSize);
     } catch (err) {
-      console.error('❌ [FETCH-FINISHED] Failed to fetch finished count:', err);
+      console.error('Failed to fetch finished count:', err);
     }
   };
 
@@ -151,7 +151,7 @@ export default function Interview() {
         setGroupSize(data.count);
       }
     } catch (err) {
-      console.error('❌ [FETCH-GROUP-SIZE] Failed to fetch group size:', err);
+      console.error('Failed to fetch group size:', err);
     }
   };
 
@@ -311,7 +311,7 @@ export default function Interview() {
         try {
           await updateProgress(user, 'offer');
         } catch (err) {
-          console.error('[handleMoveGroup] Error updating progress:', err);
+          console.error('Error updating progress while moving group:', err);
         }
         localStorage.setItem('progress', 'offer');
         window.location.href = targetPage;
