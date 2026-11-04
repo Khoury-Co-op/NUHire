@@ -37,11 +37,12 @@ describe('moving a student re-stamps present_at', () => {
     const { db, calls, params } = fakeDb();
     const body = { email: 's@x.edu', new_group_id: 2, class_id: 42 };
     new GroupController(db, io).reassignStudent({ body } as AuthRequest, res);
-    expect(calls[0]).toMatch(/UPDATE Users SET group_id = \?/);
+    // calls[0] looks up the group the student is leaving.
+    expect(calls[1]).toMatch(/UPDATE Users SET group_id = \?/);
     // Restamped only if already present: a student who never showed up is still absent.
-    expect(calls[0]).toMatch(/present_at = IF\(present_at IS NULL, NULL, \?\)/);
+    expect(calls[1]).toMatch(/present_at = IF\(present_at IS NULL, NULL, \?\)/);
     // The new stamp is the API's time, in the placeholder after group_id.
-    expect(params[0]).toEqual([2, expect.stringMatching(DB_NOW), 's@x.edu', 42]);
+    expect(params[1]).toEqual([2, expect.stringMatching(DB_NOW), 's@x.edu', 42]);
   });
 
   it('on adding an existing student to a new class', () => {
