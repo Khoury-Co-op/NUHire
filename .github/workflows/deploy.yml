@@ -2,7 +2,7 @@ name: deploy
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
 
 jobs:
   deploy:
@@ -14,4 +14,4 @@ jobs:
     steps:
       - name: Trigger coolify deploy
         run: |
-          curl --request GET "${{ secrets.COOLIFY_WEBHOOK_PROD }}" --header "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
+          curl --request GET "${{ secrets.COOLIFY_WEBHOOK_DEV }}" --header "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
