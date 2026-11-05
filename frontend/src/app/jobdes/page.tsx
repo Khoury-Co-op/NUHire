@@ -15,6 +15,7 @@ import { useSocket } from '../components/socketContext';
 import { useAuth } from '../components/AuthContext';
 import Instructions from '../components/instructions';
 import { useProgressManager } from '../components/progress';
+import { useJobDescription } from '../components/useJobDescription';
 import { PageLoader } from '../components/spinner';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -35,7 +36,8 @@ export default function JobDescriptionPage() {
   const socket = useSocket();
   const { user, loading: userloading } = useAuth();
   const { updateProgress } = useProgressManager();
-  const [fileUrl, setJob] = useState('');
+  const { job, error: jobError } = useJobDescription(user);
+  const fileUrl = job?.filePath ? `${API_BASE_URL}/${job.filePath}` : '';
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [comments, setComments] = useState<CommentType[]>([]);
@@ -143,54 +145,16 @@ export default function JobDescriptionPage() {
     };
   }, [socket]);
 
+  // This page tells the student when there is no job to show, except when the
+  // assignment request itself fails, which it has always ignored.
   useEffect(() => {
-    const fetchJob = async () => {
-      if (!user?.group_id || !user?.class) {
-        return;
-      }
-
-      try {
-        // First, get the job assignment for this group/class
-        const jobAssignmentResponse = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-          { credentials: 'include' }
-        );
-
-        if (!jobAssignmentResponse.ok) {
-          return;
-        }
-
-        const jobAssignmentData = await jobAssignmentResponse.json();
-        const jobTitle = jobAssignmentData.job;
-
-        // Then fetch the PDF file using the job title
-        const response = await fetch(
-          `${API_BASE_URL}/jobs/title?title=${encodeURIComponent(jobTitle)}&class_id=${user.class}`,
-          {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch job description PDF');
-        }
-
-        const job = await response.json();
-        setJob(`${API_BASE_URL}/${job.file_path}`);
-      } catch (error) {
-        console.error('Error fetching job description:', error);
-        setPopup({
-          headline: 'No Job Assignment',
-          message:
-            "You haven't been assigned a job description yet. Please contact your instructor.",
-        });
-      }
-    };
-
-    fetchJob();
-  }, [user?.group_id, user?.class]);
+    if (jobError && jobError !== 'assignment') {
+      setPopup({
+        headline: 'No Job Assignment',
+        message: "You haven't been assigned a job description yet. Please contact your instructor.",
+      });
+    }
+  }, [jobError]);
 
   useEffect(() => {
     const savedComments = localStorage.getItem('pdf-comments');

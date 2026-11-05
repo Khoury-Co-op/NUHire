@@ -366,14 +366,14 @@ export function StudentCSVTab() {
         setPopup({ headline: 'Success', message: '✅ Group assignments submitted successfully!' });
       } else {
         const errorData = await response.json();
-        console.error('❌ Response error:', errorData);
+        console.error('Response error:', errorData);
         setPopup({
           headline: 'Error',
           message: `Failed to submit group assignments: ${errorData.error || 'Unknown error'}`,
         });
       }
     } catch (error) {
-      console.error('🔥 Fetch error:', error);
+      console.error('Fetch error:', error);
       setPopup({
         headline: 'Error',
         message: 'An error occurred while submitting group assignments. Please try again.',

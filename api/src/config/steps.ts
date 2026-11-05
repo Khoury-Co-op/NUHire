@@ -3,6 +3,7 @@
 import { PoolConnection } from 'mysql2/promise';
 import { User } from '../models/User';
 import { RES_REVIEW_BARRIER_STEP } from './socket';
+import { dbNow } from './database';
 
 // The `Progress`.`step` values, in the order a group walks them. Shared by
 // getProgress (which wants the group's leftmost member) and forceAdvance (which
@@ -141,12 +142,13 @@ export async function recordStep(
   // as done is what "past this gate" means, and it holds across a restart.
   const priorSteps = STEP_ORDER.slice(1, (STEP_ORDER as readonly string[]).indexOf(targetStep));
   if (priorSteps.length > 0) {
+    const now = dbNow();
     const completionRows = members.flatMap((member) =>
-      priorSteps.map((step) => [member.id, classId, groupId, step])
+      priorSteps.map((step) => [member.id, classId, groupId, step, now])
     );
-    const completionPlaceholders = completionRows.map(() => '(?, ?, ?, ?)').join(', ');
+    const completionPlaceholders = completionRows.map(() => '(?, ?, ?, ?, ?)').join(', ');
     await conn.query(
-      `INSERT IGNORE INTO Step_Completion (student_id, class, group_id, step)
+      `INSERT IGNORE INTO Step_Completion (student_id, class, group_id, step, completed_at)
        VALUES ${completionPlaceholders}`,
       completionRows.flat()
     );

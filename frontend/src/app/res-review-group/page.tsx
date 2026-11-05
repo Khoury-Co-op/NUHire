@@ -11,6 +11,7 @@ import Popup from '../components/popup';
 import { useProgressManager } from '../components/progress';
 import { useSocket } from '../components/socketContext';
 import { useAuth } from '../components/AuthContext';
+import { useJobDescription } from '../components/useJobDescription';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -61,7 +62,7 @@ export default function ResReviewGroup() {
 
   // Job description state
   const [showJobDescription, setShowJobDescription] = useState(false);
-  const [jobDescPath, setJobDescPath] = useState('');
+  const jobDescPath = useJobDescription(user).job?.filePath ?? '';
   const [jobDescNumPages, setJobDescNumPages] = useState<number | null>(null);
   const [jobDescPageNumber, setJobDescPageNumber] = useState(1);
 
@@ -100,38 +101,6 @@ export default function ResReviewGroup() {
     'Click on a candidate card to preview their resume.',
     'You will then watch the interviews of the candidates selected.',
   ];
-
-  // Fetch job description for the group
-  useEffect(() => {
-    const fetchJobDescription = async () => {
-      if (!user?.group_id || !user?.class) return;
-
-      try {
-        // First get the job assignment
-        const assignmentResponse = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-          { credentials: 'include' }
-        );
-        const assignmentData = await assignmentResponse.json();
-
-        if (assignmentData.job) {
-          // Then get the job description details
-          const jobResponse = await fetch(
-            `${API_BASE_URL}/jobs/title?title=${encodeURIComponent(assignmentData.job)}&class_id=${user.class}`,
-            { credentials: 'include' }
-          );
-          const jobData = await jobResponse.json();
-          if (jobData.file_path) {
-            setJobDescPath(jobData.file_path);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching job description:', error);
-      }
-    };
-
-    fetchJobDescription();
-  }, [user?.group_id, user?.class]);
 
   // Fetch group size
   useEffect(() => {
@@ -220,7 +189,7 @@ export default function ResReviewGroup() {
 
         setResumes(formatted);
       } catch (error) {
-        console.error('❌ [INITIAL-FETCH] Error:', error);
+        console.error('Error fetching initial data:', error);
       }
     };
 
@@ -338,7 +307,7 @@ export default function ResReviewGroup() {
           localStorage.setItem('progress', 'interview');
           window.location.href = targetPage;
         } catch (err) {
-          console.error('[handleMoveGroup] Error:', err);
+          console.error('Error moving group:', err);
         }
       }
     };
@@ -354,7 +323,7 @@ export default function ResReviewGroup() {
           .then((data) => {
             setGroupSize(data.count);
           })
-          .catch((err) => console.error('❌ [STUDENT-ADDED] Failed to fetch group size:', err));
+          .catch((err) => console.error('Failed to fetch group size:', err));
       }
     };
 

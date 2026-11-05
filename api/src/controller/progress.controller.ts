@@ -4,6 +4,7 @@ import { Pool, ResultSetHeader, RowDataPacket } from 'mysql2';
 import { Server as SocketIOServer } from 'socket.io';
 import { emitToClassModerators } from '../config/socket';
 import { STEP_ORDER, isStep, decideStep } from '../config/steps';
+import { dbNow } from '../config/database';
 
 export class ProgressController {
   constructor(
@@ -229,10 +230,10 @@ export class ProgressController {
     const { studentId, groupId, classId } = identity;
 
     this.db.query(
-      `INSERT INTO GroupConfirmations (group_id, class, student_id)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE confirmed_at = CURRENT_TIMESTAMP`,
-      [groupId, classId, studentId],
+      `INSERT INTO GroupConfirmations (group_id, class, student_id, confirmed_at)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE confirmed_at = VALUES(confirmed_at)`,
+      [groupId, classId, studentId, dbNow()],
       (err) => {
         if (err) {
           console.error('Error recording group confirmation:', err);
