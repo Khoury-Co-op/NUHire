@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { Pool } from 'mysql2';
+import { PrismaDb } from '../config/database';
 import { ModeratorController } from '../controller/moderator.controller';
 import { requireAuth, requireAdmin, requireModerator } from '../middleware/auth.middleware';
+import { createPdfTextRepository } from '../repository/pdfText.repository';
 
-export default (db: Pool): Router => {
+export default (db: Pool, prisma: PrismaDb): Router => {
   const router = Router();
-  const moderatorController = new ModeratorController(db);
+  const moderatorController = new ModeratorController(db, createPdfTextRepository(prisma));
 
   // Teacher grants. DELETE cascades through the whole class.
   router.post('/crns', requireModerator, moderatorController.addModeratorCRN);

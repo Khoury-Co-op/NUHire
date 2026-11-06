@@ -8,6 +8,7 @@ import { Pool } from 'mysql2';
 import { Server as SocketIOServer } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
+import { extractPdfText } from '../config/pdfText';
 
 export class ResumeController {
   constructor(
@@ -190,7 +191,7 @@ export class ResumeController {
     });
   };
 
-  createResumePdf = (req: AuthRequest, res: Response): void => {
+  createResumePdf = async (req: AuthRequest, res: Response): Promise<void> => {
     const { resTitle, filePath, f_name, l_name, vid, class_id } = req.body;
 
     if (!resTitle || !filePath || !f_name || !l_name || !vid || !class_id) {
@@ -200,8 +201,10 @@ export class ResumeController {
       return;
     }
 
-    const resumeSql = 'INSERT INTO Resume_pdfs (title, file_path, class_id) VALUES (?, ?, ?)';
-    this.db.query(resumeSql, [resTitle, filePath, class_id], (err, resumeResult: any) => {
+    const text = await extractPdfText('Resume_pdfs', filePath);
+    const resumeSql =
+      'INSERT INTO Resume_pdfs (title, file_path, class_id, extracted_text) VALUES (?, ?, ?, ?)';
+    this.db.query(resumeSql, [resTitle, filePath, class_id, text], (err, resumeResult: any) => {
       if (err) {
         console.error('Error inserting resume:', err);
 
