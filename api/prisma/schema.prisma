@@ -184,6 +184,7 @@ model Resume_pdfs {
   title          String           @db.VarChar(255)
   id             Int              @id @default(autoincrement())
   class_id       Int
+  extracted_text String?          @db.MediumText
   Candidates     Candidates?
   Interview_vids Interview_vids[]
   Moderator      Moderator        @relation(fields: [class_id], references: [crn], onDelete: Cascade, onUpdate: NoAction, map: "resume_pdfs_class_fk")
@@ -260,6 +261,7 @@ model job_descriptions {
   file_path      String           @db.VarChar(255)
   uploaded_at    DateTime?        @default(now()) @db.Timestamp(0)
   class_id       Int
+  extracted_text String?          @db.MediumText
   Job_Assignment Job_Assignment[]
   Moderator      Moderator        @relation(fields: [class_id], references: [crn], onDelete: Cascade, onUpdate: NoAction, map: "job_descriptions_class_fk")
 
