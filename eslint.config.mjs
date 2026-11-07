@@ -89,6 +89,27 @@ export default tseslint.config(
     },
   },
   {
+    // The goal is no SQL in api/src at all, Prisma's raw calls included. A
+    // write that has to be atomic uses the helpers in repository/writes.ts.
+    files: ['api/src/**/*.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        ...[
+          '$queryRaw',
+          '$executeRaw',
+          '$queryRawUnsafe',
+          '$executeRawUnsafe',
+          '$queryRawTyped',
+        ].map((property) => ({
+          property,
+          message:
+            "Use Prisma's query API. For a write that must be atomic, see api/src/repository/writes.ts.",
+        })),
+      ],
+    },
+  },
+  {
     files: ['frontend/**/*.{ts,tsx,js,jsx}'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
     plugins: { 'react-hooks': reactHooks, '@next/next': nextPlugin },

@@ -15,6 +15,7 @@ override that.
   lib/          shared code: env, roster, db, keycloak admin, login, cleanup
   seed/         seed.mjs, wipe.mjs, check.mjs, scenarios.mjs
   load-tests/   run.mjs, student.mjs, advisor.mjs, journey.mjs, metrics.mjs
+  races/        run.mjs, harness.mjs, cases/ (one file per area)
 ```
 
 ## Commands
@@ -117,6 +118,32 @@ Each method in `load-tests/student.mjs` copies one page's requests and socket
 events, bugs included. When a page changes, change its method. `journey.mjs`
 says where each student should end. Method and results:
 [docs/LOAD_TEST.md](../../docs/LOAD_TEST.md).
+
+## Race check
+
+`npm run races` builds `api/` and fires 30 concurrent first writes at each
+write that has to be atomic, five rounds each, then prints PASS or FAIL per
+case. It needs only MySQL up, not the API or Keycloak, and finishes in a few
+seconds.
+
+MySQL made these writes atomic with `ON DUPLICATE KEY UPDATE` and
+`INSERT IGNORE`. Prisma has neither, and its `upsert` reads before it writes,
+so the helpers in `api/src/repository/writes.ts` replace them (AGENTS.md, "How
+code should look here"). The script runs the compiled helpers and repositories
+against real tables, because the race only exists with a real database.
+
+- `cases/writes.mjs` checks each helper. Its two `INFO` lines are controls: a
+  bare `upsert`, and an upsert retried inside a transaction. Both lose writes,
+  which is the reason for each rule. They never fail the run, and say so if
+  the race did not show up.
+- `cases/<area>.mjs` checks an area's own repository writes. A ticket that
+  moves a write adds its case there and lists the file in `AREAS` in
+  `run.mjs`.
+
+Every case writes under class ids 990000 to 990999, which no real or seeded
+class uses, and the script deletes those rows before and after it runs. A case
+on a table with a foreign key creates the rows it needs in `setup`, in that
+range, and deletes them in its file's `cleanup`.
 
 ## How the fake students log in
 
