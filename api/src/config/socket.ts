@@ -3,6 +3,7 @@ import { Pool, ResultSetHeader, RowDataPacket } from 'mysql2';
 import { SocketEvents } from '../models/SocketEvents';
 import { isAdmin } from '../models/User';
 import { BarrierStatus, PresentMember, StepCompletion } from '../models/Barrier';
+import { dbNow } from './database';
 
 // Advisors join a room named after their own email (see 'adminOnline' below),
 // so notifying a class's teachers is one emit per Moderator row for that CRN.
@@ -102,10 +103,10 @@ export async function markPresent(
 ): Promise<void> {
   const [result] = await db
     .promise()
-    .query<ResultSetHeader>(
-      'UPDATE Users SET present_at = CURRENT_TIMESTAMP WHERE id = ? AND present_at IS NULL',
-      [user.id]
-    );
+    .query<ResultSetHeader>('UPDATE Users SET present_at = ? WHERE id = ? AND present_at IS NULL', [
+      dbNow(),
+      user.id,
+    ]);
   const { group_id: groupId, class: classId } = user;
   if (result.affectedRows === 0 || !groupId || !classId) return;
   io.to(`group_${groupId}_class_${classId}`).emit('studentAddedToGroup', { groupId, classId });
@@ -479,7 +480,7 @@ export function initializeSocketHandlers(io: SocketIOServer, db: Pool): Record<s
               }
             });
           } else {
-            console.log('No online students in the selected groups.');
+            console.info('No online students in the selected groups.');
           }
         });
       }
@@ -586,10 +587,10 @@ export function initializeSocketHandlers(io: SocketIOServer, db: Pool): Record<s
       // re-announcing does not rewrite the time the student actually finished,
       // which is what the professor reads when a group stalls.
       await db.promise().query(
-        `INSERT INTO Step_Completion (student_id, class, group_id, step)
-           VALUES (?, ?, ?, ?)
+        `INSERT INTO Step_Completion (student_id, class, group_id, step, completed_at)
+           VALUES (?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE completed_at = completed_at`,
-        [student.id, student.classId, student.groupId, RES_REVIEW_BARRIER_STEP]
+        [student.id, student.classId, student.groupId, RES_REVIEW_BARRIER_STEP, dbNow()]
       );
       await broadcastGroupBarrier(
         io,

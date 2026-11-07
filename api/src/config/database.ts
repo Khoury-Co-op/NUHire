@@ -18,6 +18,23 @@ import type { ITXClientDenyList } from '@prisma/client/runtime/client';
 import { PrismaClient } from '../generated/prisma/client';
 
 /**
+ * "Now" for the gate timestamps (`Users.present_at`, `Step_Completion.completed_at`,
+ * `GroupConfirmations.confirmed_at`), from the API's clock: UTC, cut to whole
+ * seconds. That is what MySQL's own clock writes into these TIMESTAMP(0)
+ * columns on a UTC server, and what Prisma writes for a Date, since it formats
+ * in UTC (MySQL would round the milliseconds Prisma sends, so they are dropped
+ * here). The gates compare these columns with each other, so every write has to
+ * come from one clock.
+ *
+ * It returns the literal rather than a Date on purpose: mysql2 formats a Date in
+ * the API host's local time zone, which lands hours away from MySQL's clock on
+ * any machine not running in UTC.
+ */
+export function dbNow(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
  * mysql2 keeps its pool bookkeeping in these three queues. They are not in the
  * published types, so /health/db reads them through this shape rather than
  * through `any`.
@@ -126,7 +143,7 @@ function positiveIntFromEnv(name: string, fallback: number): number {
   }
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.error(`⚠️ ${name}="${raw}" is not a positive integer; falling back to ${fallback}`);
+    console.error(`${name}="${raw}" is not a positive integer; falling back to ${fallback}`);
     return fallback;
   }
   return parsed;
@@ -228,19 +245,19 @@ export class DatabaseService {
         this.pool = await this.createPool();
         this.prisma = await this.connectPrisma();
         await this.initializeDatabase();
-        console.log('✅ Database connection pool established successfully');
+        console.info('Database connection pool established successfully');
         return this.pool;
       } catch (error) {
         retryCount++;
-        console.error(`❌ Database pool creation attempt ${retryCount} failed:`, error);
+        console.error(`Database pool creation attempt ${retryCount} failed:`, error);
         await this.closeFailedAttempt();
 
         if (retryCount < this.maxRetries) {
           const delay = Math.min(10000, retryCount * 1000);
-          console.log(`🔄 Retrying in ${delay / 1000} seconds...`);
+          console.warn(`Retrying in ${delay / 1000} seconds...`);
           await this.sleep(delay);
         } else {
-          console.error('❌ All database connection attempts failed. Exiting application.');
+          console.error('All database connection attempts failed. Exiting application.');
           process.exit(1);
         }
       }
@@ -296,7 +313,7 @@ export class DatabaseService {
         },
       };
 
-      console.log(
+      console.info(
         `Creating pool: host=${poolConfig.host}, port=${poolConfig.port}, database=${poolConfig.database}, connectionLimit=${poolConfig.connectionLimit}, queueLimit=${poolConfig.queueLimit}`
       );
 
@@ -312,7 +329,7 @@ export class DatabaseService {
       // Test the pool with a connection
       pool.getConnection((err, connection) => {
         if (err) {
-          console.error('❌ Database pool connection test failed:', err.message);
+          console.error('Database pool connection test failed:', err.message);
           reject(err);
         } else {
           connection.release(); // Release test connection back to pool
@@ -354,15 +371,15 @@ export class DatabaseService {
       // not know the variable just errors, so failure here is not fatal.
       connection.query('SET SESSION max_execution_time = ?', [this.queryTimeoutMs], (err) => {
         if (err) {
-          console.error('⚠️ Could not set max_execution_time on pooled connection:', err.code);
+          console.error('Could not set max_execution_time on pooled connection:', err.code);
         }
       });
     });
 
     pool.on('error', (err) => {
-      console.error('❌ Database pool error:', err);
+      console.error('Database pool error:', err);
       if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-        console.log('🔄 Database connection lost. Pool will reconnect automatically.');
+        console.warn('Database connection lost. Pool will reconnect automatically.');
       } else {
         console.error('Unexpected pool error:', err);
       }

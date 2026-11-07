@@ -154,9 +154,7 @@ export class App {
       );
 
       if (recentCalls.length > 50) {
-        console.warn(
-          `⚠️  WARNING: ${route} called ${recentCalls.length} times in the last minute!`
-        );
+        console.warn(`WARNING: ${route} called ${recentCalls.length} times in the last minute!`);
       }
 
       next();
@@ -233,7 +231,7 @@ export class App {
 
   public listen(port: number): void {
     this.server.listen(port, () => {
-      console.log(`🚀 Server running`);
+      console.info(`Server running`);
     });
   }
 }

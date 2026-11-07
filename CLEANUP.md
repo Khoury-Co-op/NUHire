@@ -652,10 +652,10 @@ grep -rnE "console\.[a-z]+\(\s*[\`'\"](❌|✅|🔄|🚀|🔥|⚠️|📊|🎉)"
 
 ### Done when
 
-- [ ] `grep -rn "console\.log" api/src frontend/src` returns only the example
+- [x] `grep -rn "console\.log" api/src frontend/src` returns only the example
       command in `server.ts:27` and the comment in `config/logger.ts`
-- [ ] The emoji grep returns 0
-- [ ] No message text changed beyond the prefix
+- [x] The emoji grep returns 0
+- [x] No message text changed beyond the prefix
 
 ---
 
