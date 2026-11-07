@@ -16,8 +16,7 @@ import { useClassGroups } from './manageGroups/useClassGroups';
 import { useOffers } from './manageGroups/useOffers';
 import { useAuth } from './AuthContext';
 import type { JobOption, Student } from '../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 export function ManageGroupsTab() {
   const { user, loading: userloading } = useAuth();

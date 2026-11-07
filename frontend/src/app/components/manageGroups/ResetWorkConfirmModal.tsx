@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../../lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const CONFIRM_WORD = 'ERASE';
 
 interface GroupResetPreview {

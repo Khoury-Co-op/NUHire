@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Slideshow from '../components/slideshow';
 import Link from 'next/link';
 import Popup from '../components/popup';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 export default function ModeratorSignIn() {
   const [username, setUsername] = useState('');
