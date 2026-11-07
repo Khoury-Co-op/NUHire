@@ -109,8 +109,8 @@ export async function compareAndSet<Key, Where, Create, Update>(
   if (count > 0) {
     return 'updated';
   }
-  // Nothing matched: either the row fails `when`, or it was deleted since the
-  // read, as assigning a job deletes a group's offer.
+  // Nothing matched: either the row fails `when`, or another request deleted it
+  // since the read.
   if ((await model.findUnique({ where: args.key })) !== null) {
     return 'unchanged';
   }
