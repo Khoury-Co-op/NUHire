@@ -5,8 +5,8 @@ import Navbar from '../components/navbar';
 import { useSocket } from '../components/socketContext';
 import { useAuth } from '../components/AuthContext';
 import { PageLoader } from '../components/spinner';
+import { API_BASE_URL } from '../../lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const NotesPage: React.FC = () => {
   const socket = useSocket();
 
