@@ -2,8 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSocket } from './socketContext';
 import { useAuth } from './AuthContext';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 interface Fact {
   fact: string;

@@ -169,6 +169,15 @@ try {
 }
 ```
 
+In a repository, a Prisma transaction lives inside one repository method as
+`db.$transaction(async (tx) => { ... })`, and that method may touch several
+tables. Run every query in it on `tx`: one on `db` runs outside the transaction.
+A transaction client cannot open another transaction, so a repository with such
+a method takes `PrismaDb` rather than `DbClient`. A transaction that writes
+goes inside `withUniqueRetry` whole, as the write patterns under "How code
+should look here" say. The mysql2 example above stays until the last mysql2
+query is gone.
+
 ### 7. Parameterize every query
 
 `mysql2` with `?` placeholders, always. Never template-interpolate user input
@@ -231,6 +240,12 @@ needs a numbered file in `database-files/migrations/` in the same commit. Read
 that directory's README first; it also explains why a migration that adds a
 constraint has to clean up the rows violating it.
 
+dbmate owns the schema, and Prisma only reads it. After adding a migration, run
+`npm run db:migrate` to apply it to your local database, then run
+`npm run db:pull` and commit `api/prisma/schema.prisma` in the same commit.
+Never run `prisma migrate` or `prisma db push`, and never hand-edit
+`schema.prisma`, because the next `db pull` rewrites it.
+
 ---
 
 ## Layout
@@ -240,12 +255,13 @@ api/src/
   server.ts          entrypoint
   app.ts             express setup, middleware, route mounting
   config/
-    database.ts      mysql pool + boot-time seeding
+    database.ts      mysql pool, Prisma client, boot-time seeding
     passport.ts      keycloak oidc strategy
     socket.ts        ALL real-time behaviour
     steps.ts         step order, step -> route, and writing a step
   routes/            path -> controller, and the auth middleware per route
-  controller/        request handling and raw SQL
+  controller/        request handling, plus raw SQL in areas not yet moved
+  repository/        data access through Prisma, one file per area
   middleware/        requireAuth, requireAdmin, requireStudent
   models/            shared types: User, AuthRequest, SocketEvents (socket payloads), Barrier
 
@@ -257,9 +273,15 @@ frontend/src/app/
   components/        shared UI + React contexts
 ```
 
-Request flow is `routes/ -> controller/ -> raw SQL`. There is no service or
-repository layer. Do not introduce one for a single endpoint; if you are doing a
-planned refactor, do it consistently across a whole area.
+Request flow is `routes/ -> controller/ -> repository/`. The route file builds
+each repository and passes it to the controller. The controller does the HTTP
+work: parsing ids, validating, status codes and socket emits. It asks a
+repository for data and never imports the Prisma client; lint fails it if it
+does. Notes and facts are the example to copy. Most areas still keep raw SQL in
+their controller and move one area at a time, each in its own ticket.
+
+There is no service layer. Moving business logic out of controllers is a
+separate decision from moving the SQL out.
 
 ## Conventions
 
@@ -278,10 +300,37 @@ planned refactor, do it consistently across a whole area.
 The target for new code and for the tidying in [CLEANUP.md](CLEANUP.md). Most
 of the existing code does not look like this yet; do not copy it.
 
-- **`async`/`await`, never callbacks.** Use `db.promise().query<RowDataPacket[]>(...)`,
-  or a checked-out connection for a transaction (rule 6). No new
-  `db.query(sql, params, (err, rows) => ...)`, and no `async` function without
-  an `await` in it.
+- **New data access goes in a repository**, through Prisma's query API: not in a
+  controller, and not as raw SQL. A repository is an interface plus a
+  `create<Area>Repository(db: DbClient)` factory in
+  `api/src/repository/<area>.repository.ts`. It returns the shapes in
+  `api/src/models/` and keeps Prisma's generated types to itself. A
+  group-scoped method takes `{ groupId, classId }` together.
+- **A write two requests can race uses `api/src/repository/writes.ts`.**
+  Prisma's `upsert` on MySQL is a SELECT and then an INSERT or UPDATE, so two
+  first writes at once can both choose INSERT, and one fails. Never a bare
+  `upsert` or `compareAndSet`. Translating today's SQL:
+  - `ON DUPLICATE KEY UPDATE col = VALUES(col)` becomes
+    `withUniqueRetry(() => upsert(...))`. For `col = col + VALUES(col)`, put
+    `{ increment: n }` in `update`
+  - `INSERT IGNORE`, and `ON DUPLICATE KEY UPDATE col = col`, become
+    `insertIfAbsent(model, row)`
+  - `ON DUPLICATE KEY UPDATE x = IF(...)` becomes
+    `withUniqueRetry(() => compareAndSet(model, { key, when, create, update }))`.
+    `key` is the unique key as `findUnique` takes it, such as
+    `{ class_id_group_id: { class_id, group_id } }`, and the `IF` condition
+    goes in `when`
+  - in a transaction, wrap the whole `$transaction` call in `withUniqueRetry`,
+    never a write inside it. A retry inside reads the transaction's snapshot,
+    which still has no row, and fails again. After a deadlock it is worse:
+    MySQL has already rolled the transaction back, so the retry commits on its
+    own and the rest of the transaction is lost
+  - check a new or changed write with `npm run races`, and add a case for it
+    under `.local/tests/races/cases/`
+- **`async`/`await`, never callbacks.** In code still on mysql2, use
+  `db.promise().query<RowDataPacket[]>(...)`, or a checked-out connection for a
+  transaction (rule 6). No new `db.query(sql, params, (err, rows) => ...)`, and
+  no `async` function without an `await` in it.
 - **One handler shape.** Validate input and answer 400, run the queries in one
   `try`, respond once. In the `catch`, `console.error` the real error with
   context and answer with a fixed message.
@@ -338,6 +387,8 @@ or you have not tested it. The built-in accounts only go as far as three
 students; `npm run seed` builds a 30-student class when you need the real size,
 and `npm run load` walks that whole class through the activity at once, which is
 the check for barrier and socket changes (see `.local/tests/README.md`).
+`npm run races` is the check for a write that must be atomic: it fires 30
+concurrent first writes at each one and fails if any is lost.
 
 ## Before you open a PR
 

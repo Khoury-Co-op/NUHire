@@ -4,8 +4,7 @@ import { useRouter } from 'next/navigation';
 import Slideshow from '../components/slideshow';
 import Image from 'next/image';
 import { PageLoader } from '../components/spinner';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 export default function AboutPage() {
   const router = useRouter();

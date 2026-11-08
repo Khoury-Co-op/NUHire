@@ -1,6 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Instructions from '../components/instructions';
 import Navbar from '../components/navbar';
