@@ -1,9 +1,10 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
-import { dbErrorStatus, PrismaDb } from '../config/database';
+import { dbErrorStatus } from '../config/database';
+import { NotesRepository } from '../repository/notes.repository';
 
 export class NoteController {
-  constructor(private prisma: PrismaDb) {}
+  constructor(private notes: NotesRepository) {}
 
   getNotes = async (req: AuthRequest, res: Response): Promise<void> => {
     // Notes are private. Always use the authenticated identity; a client-supplied
@@ -14,10 +15,7 @@ export class NoteController {
       return;
     }
     try {
-      const notes = await this.prisma.notes.findMany({
-        where: { user_email: userEmail },
-        orderBy: { created_at: 'desc' },
-      });
+      const notes = await this.notes.listForUser(userEmail);
       res.json(notes);
     } catch (err) {
       // err.message names the table and column that failed, which handed
@@ -44,10 +42,7 @@ export class NoteController {
     }
 
     try {
-      const note = await this.prisma.notes.create({
-        data: { user_email, content },
-        select: { id: true },
-      });
+      const note = await this.notes.create(user_email, content);
       res.status(200).json({ content, id: note.id });
     } catch (err) {
       console.error('Error creating note:', err);

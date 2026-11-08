@@ -1,5 +1,5 @@
 'use client'; // Declares that this page is a client component
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useSocket } from './socketContext';
