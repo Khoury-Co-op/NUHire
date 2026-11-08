@@ -563,7 +563,7 @@ export class GroupController {
 
       const existingStudent = checkResults[0];
 
-      if (existingStudent.class === class_id) {
+      if (Number(existingStudent.class) === Number(class_id)) {
         res.status(409).json({ error: 'Student already exists in this class' });
         return;
       }
