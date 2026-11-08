@@ -1,14 +1,14 @@
 'use client';
 import Image from 'next/image';
 import Slideshow from './components/slideshow';
+import { API_BASE_URL } from '../lib/api';
 import './globals.css';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
 
 export default function Home() {
   const handleKeycloakLogin = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    window.location.href = `${apiUrl}/auth/keycloak`;
+    window.location.href = `${API_BASE_URL}/auth/keycloak`;
   };
 
   const handleModeratorLogin = () => {

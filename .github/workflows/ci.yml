@@ -248,6 +248,23 @@ jobs:
         run: npm run db:migrate --prefix api
         env:
           DATABASE_URL: mysql://root:ci@127.0.0.1:3306/nuhire
+      # schema.prisma is a copy of what dbmate builds, and a migration merged
+      # without `npm run db:pull` leaves Prisma's types wrong in a way tsc
+      # cannot see. The session store creates `sessions` when the API first
+      # boots, so it is in schema.prisma but not Pandployer.sql; create it from
+      # the store's own file. `--print` ends with two blank lines the written
+      # file does not have, and $(...) drops trailing newlines from both sides.
+      - name: Check schema.prisma matches the migrations
+        working-directory: api
+        env:
+          DATABASE_URL: mysql://root:ci@127.0.0.1:3306/nuhire
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci nuhire < node_modules/express-mysql-session/schema.sql
+          pulled=$(npx prisma db pull --print)
+          if ! diff -u --label api/prisma/schema.prisma --label 'prisma db pull' <(printf '%s\n' "$(cat prisma/schema.prisma)") <(printf '%s\n' "$pulled"); then
+            echo "::error file=api/prisma/schema.prisma,title=schema.prisma is out of date::Run npm run db:pull and commit the result"
+            exit 1
+          fi
       # The README requires every migration to be safe to run twice, so run
       # them all twice, in order.
       - name: Apply migrations twice

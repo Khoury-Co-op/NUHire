@@ -2,8 +2,10 @@
 import { Response } from 'express';
 import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../models/AuthRequest';
-import { dbErrorStatus, PrismaDb } from '../config/database';
+import { dbErrorStatus } from '../config/database';
 import { User, isAdmin } from '../models/User';
+import { FactsRepository } from '../repository/facts.repository';
+import { ModeratorRepository } from '../repository/moderator.repository';
 
 // Nine digits keep it inside MySQL's INT.
 const CLASS_ID = /^\d{1,9}$/;
@@ -18,18 +20,10 @@ function parseClassId(raw: string): number | null {
 
 export class FactsController {
   constructor(
-    private prisma: PrismaDb,
+    private facts: FactsRepository,
+    private moderators: ModeratorRepository,
     private io: SocketIOServer
   ) {}
-
-  // checks if the admin with the given email is the professor for the given class
-  private moderates = async (email: string, classId: number): Promise<boolean> => {
-    const moderator = await this.prisma.moderator.findUnique({
-      where: { crn: classId },
-      select: { admin_email: true },
-    });
-    return moderator?.admin_email === email;
-  };
 
   getFacts = async (req: AuthRequest, res: Response): Promise<void> => {
     const user: User = req.user!;
@@ -43,14 +37,11 @@ export class FactsController {
 
     try {
       // admin can't get a class that's not theirs
-      if (isAdmin(user) && !(await this.moderates(user.email, classId))) {
+      if (isAdmin(user) && !(await this.moderators.teaches(user.email, classId))) {
         res.status(403).json({ error: 'Forbidden: not your class' });
         return;
       }
-      const facts = await this.prisma.waitingFacts.findUnique({
-        where: { class_id: classId },
-        select: { one: true, two: true, three: true },
-      });
+      const facts = await this.facts.findByClass(classId);
       // An empty array, not null, is what a class with no facts has always got.
       res.json(facts ?? []);
     } catch (error) {
@@ -73,16 +64,11 @@ export class FactsController {
     }
 
     try {
-      if (!(await this.moderates(user.email, classId))) {
+      if (!(await this.moderators.teaches(user.email, classId))) {
         res.status(403).json({ error: 'Forbidden: not your class' });
         return;
       }
-      // One statement, as before. On MySQL Prisma's upsert is a SELECT and then
-      // an INSERT or UPDATE, so two first saves for a class can both insert and
-      // one fails on the primary key.
-      await this.prisma.$executeRaw`
-        INSERT INTO WaitingFacts (class_id, one, two, three) VALUES (${classId}, ${one}, ${two}, ${three})
-        ON DUPLICATE KEY UPDATE one = ${one}, two = ${two}, three = ${three}`;
+      await this.facts.save(classId, { one, two, three });
       this.io.to(`class_${classId}`).emit('factsUpdated');
       res.status(200).json({ message: 'Facts saved successfully' });
     } catch (error) {

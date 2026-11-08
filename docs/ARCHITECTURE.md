@@ -115,18 +115,21 @@ api/src/
   server.ts          boot: connect db, configure passport, start
   app.ts             middleware, session, route mounting
   config/
-    database.ts      mysql pool, boot-time seeding
+    database.ts      mysql pool, Prisma client, boot-time seeding
     passport.ts      keycloak strategy
     socket.ts        ALL real-time behaviour
     steps.ts         step order, step -> route, and writing a step
   routes/            path -> controller, plus auth middleware per route
-  controller/        request handling and raw SQL
+  controller/        request handling, plus raw SQL in areas not yet moved
+  repository/        data access through Prisma, one file per area
   middleware/        requireAuth, requireAdmin, requireStudent
   models/            shared types: User, AuthRequest, SocketEvents (socket payloads), Barrier
 ```
 
-**Request flow:** `routes/ -> controller/ -> raw SQL`. No service layer, no ORM.
-SQL strings live inside controllers.
+**Request flow:** `routes/ -> controller/ -> repository/`. No service layer.
+Notes and waiting-room facts already query through repositories on Prisma.
+Every other area still has its SQL strings inside the controller, on mysql2,
+until its own ticket moves it.
 
 Reading an endpoint: start in `routes/`, which tells you the path, the middleware,
 and the controller method. Then read that method.
