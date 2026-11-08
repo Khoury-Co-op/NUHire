@@ -10,8 +10,7 @@ import {
   VOTE_LABEL,
 } from '../../lib/ratings';
 import type { Candidate, InterviewRating, Resume, Student } from '../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 // Students who haven't voted or rated yet come back with these fields null.
 type StudentVote = Pick<Student, 'id' | 'f_name' | 'l_name'> &

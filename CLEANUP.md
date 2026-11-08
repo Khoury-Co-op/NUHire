@@ -1188,8 +1188,8 @@ grep -rn "https://nuhire-api" frontend/src
 
 ### Done when
 
-- [ ] `grep -rn "process.env.NEXT_PUBLIC_API_BASE_URL" frontend/src` returns one line
-- [ ] Frontend typechecks, builds, and `npm test` passes
+- [x] `grep -rn "process.env.NEXT_PUBLIC_API_BASE_URL" frontend/src` returns one line
+- [x] Frontend typechecks, builds, and `npm test` passes
 
 ---
 
