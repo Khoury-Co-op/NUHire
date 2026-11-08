@@ -1,11 +1,11 @@
 # ATS: which approach (OAS-244)
 
 **Decision: keyword matching, against a short term list per job description.**
-It is the only option that gives every group the same score for the same
-resume, costs nothing per class, and sends no resume anywhere. HackerRank's
-open-source tool is ruled out. An AI model was not tested: there is no Khoury
-API key yet and no free model is installed. It stays a later option for
-explaining a score, not for producing one.
+It costs nothing per class, cannot fail mid-class on a quota or an outage,
+sends no resume anywhere, and shows students exactly which terms matched.
+HackerRank's open-source tool is ruled out. An AI model was not tested: there
+is no Khoury API key yet and no free model is installed. It stays a later
+option for explaining a score, not for producing one.
 
 The text this needs is extracted and stored by OAS-245 (#123).
 
@@ -54,13 +54,31 @@ So the build should score against a curated list of 10 to 20 terms per posting
 (skills, tools, degree), not every word in it. That is also how real ATS
 screens work: a recruiter sets the keywords.
 
+## Where the term lists come from
+
+- **The 5 default postings:** written once, by hand, and seeded into every new
+  class alongside the default PDFs in `api/src/config/database.ts`.
+- **A posting a professor uploads on `/new-pdf`:** the upload form gets a terms
+  field, stored with the posting (a new column, so a numbered migration). A
+  posting saved without terms is not scored; the raw-word fallback above is
+  too noisy to show students.
+
+## When students see it
+
+After each student has cast their own resume votes: from the group review
+(`res-review-group`) onward, not during the individual review. A score shown
+first would anchor the votes, and the individual votes are what the accuracy
+check below compares against.
+
 ## Accuracy
 
 There is no answer key: all five postings share the same 10 resumes, and the
 professor's accept or reject is roleplay, not grading. Accuracy above means
-repeatable and job-sensitive, which keyword matching is and an LLM score is
-not. The real check is available later and stays in-house: compare its
-shortlist with how students voted on the same resumes in past classes.
+repeatable and job-sensitive. A cached LLM score would be repeatable too, so
+that is not what rules AI out; cost, a mid-class outage and resume text
+leaving our servers are. The real check is available later and stays
+in-house: compare its shortlist with how students voted on the same resumes in
+past classes. That only holds while students vote before seeing a score.
 
 ## Cost
 
@@ -84,6 +102,7 @@ shortlist with how students voted on the same resumes in past classes.
 ## Next
 
 1. Request the Khoury API key.
-2. Build keyword matching over the stored text, with a term list per job
-   description and the matched and missing terms shown to students.
+2. Build keyword matching over the stored text: seeded term lists for the
+   default postings, a terms field on `/new-pdf` (with its migration), and the
+   matched and missing terms shown from the group review onward.
 3. Revisit AI for "explain this score" once the key exists.
