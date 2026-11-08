@@ -21,8 +21,7 @@ import {
   Rating,
 } from '../../lib/ratings';
 import type { Candidate, InterviewRating, OfferCandidate, ResumePdf } from '../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 type VoteData = Record<Rating, number>;
 

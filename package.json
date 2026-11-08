@@ -21,6 +21,7 @@
     "seed:reset": "node .local/tests/seed/wipe.mjs --yes --keep-keycloak && node .local/tests/seed/seed.mjs",
     "seed:check": "node .local/tests/seed/check.mjs",
     "load": "npm run seed:reset && node .local/tests/load-tests/run.mjs",
+    "races": "npm --prefix api run build && node .local/tests/races/run.mjs",
     "db:migrate": "npm --prefix api run db:migrate",
     "db:pull": "npm --prefix api run db:pull",
     "dev:api": "npm --prefix api run build && npm --prefix api start",

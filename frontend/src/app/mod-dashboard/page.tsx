@@ -1,5 +1,5 @@
 'use client';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
