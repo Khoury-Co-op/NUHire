@@ -38,6 +38,21 @@ export class GroupController {
     );
   }
 
+  // The group a student is in before a change moves them out of it, so that
+  // group's barrier can be recounted too.
+  private async currentGroupId(
+    email: string,
+    classId: number | string
+  ): Promise<number | undefined> {
+    const [rows] = await this.db
+      .promise()
+      .query<(RowDataPacket & Pick<User, 'group_id'>)[]>(
+        'SELECT group_id FROM Users WHERE email = ? AND class = ?',
+        [email, classId]
+      );
+    return rows[0]?.group_id ?? undefined;
+  }
+
   getGroups = async (req: AuthRequest, res: Response): Promise<void> => {
     const { class: classId } = req.query;
 
@@ -175,7 +190,7 @@ export class GroupController {
     });
   };
 
-  reassignStudent = (req: AuthRequest, res: Response): void => {
+  reassignStudent = async (req: AuthRequest, res: Response): Promise<void> => {
     const { email, new_group_id, class_id } = req.body;
 
     if (!email || !new_group_id || !class_id) {
@@ -185,74 +200,71 @@ export class GroupController {
       return;
     }
 
-    const getGroupQuery = 'SELECT group_id FROM Users WHERE email = ? AND class = ?';
+    let studentGroupId: number | undefined;
+    try {
+      studentGroupId = await this.currentGroupId(email, class_id);
+    } catch (lookupErr) {
+      console.error('Error fetching student group:', lookupErr);
+      res.status(500).json({ error: 'Failed to fetch student information' });
+      return;
+    }
 
-    this.db.query<RowDataPacket[]>(getGroupQuery, [email, class_id], (lookupErr, rows) => {
-      if (lookupErr) {
-        console.error('Error fetching student group:', lookupErr);
-        res.status(500).json({ error: 'Failed to fetch student information' });
+    const updateQuery = `UPDATE Users SET group_id = ?, ${RESTAMP_ON_MOVE} WHERE email = ? AND class = ?`;
+
+    this.db.query(updateQuery, [new_group_id, dbNow(), email, class_id], (err, result: any) => {
+      if (err) {
+        console.error('Error reassigning student to new group:', err);
+        res.status(500).json({ error: 'Failed to reassign student' });
         return;
       }
 
-      const studentGroupId = rows[0]?.group_id;
+      if (result.affectedRows === 0) {
+        res.status(404).json({ error: 'Student not found in this class' });
+        return;
+      }
 
-      const updateQuery = `UPDATE Users SET group_id = ?, ${RESTAMP_ON_MOVE} WHERE email = ? AND class = ?`;
+      const roomId = `group_${new_group_id}_class_${class_id}`;
+      this.io.to(roomId).emit('studentAddedToGroup', {
+        groupId: new_group_id,
+        classId: class_id,
+      });
 
-      this.db.query(updateQuery, [new_group_id, dbNow(), email, class_id], (err, result: any) => {
-        if (err) {
-          console.error('Error reassigning student to new group:', err);
-          res.status(500).json({ error: 'Failed to reassign student' });
-          return;
-        }
-
-        if (result.affectedRows === 0) {
-          res.status(404).json({ error: 'Student not found in this class' });
-          return;
-        }
-
-        const roomId = `group_${new_group_id}_class_${class_id}`;
-        this.io.to(roomId).emit('studentAddedToGroup', {
-          groupId: new_group_id,
-          classId: class_id,
-        });
-
-        // A moved student's confirmation and step-completion rows describe the
-        // group they LEFT. Left in place they are ignored by the current-member
-        // joins, but the moment the student is moved back (a mis-click, undone)
-        // they would reappear as already confirmed and already finished for a
-        // selection they never saw. Clear them before recounting.
-        const clearStale = (cb: () => void) => {
-          this.db.query(
-            'DELETE gc FROM GroupConfirmations gc JOIN Users u ON u.id = gc.student_id WHERE u.email = ? AND u.class = ?',
-            [email, class_id],
-            (e1) => {
-              if (e1) console.error('Could not clear stale confirmations on reassign:', e1);
-              this.db.query(
-                'DELETE sc FROM Step_Completion sc JOIN Users u ON u.id = sc.student_id WHERE u.email = ? AND u.class = ?',
-                [email, class_id],
-                (e2) => {
-                  if (e2) console.error('Could not clear stale completions on reassign:', e2);
-                  cb();
-                }
-              );
-            }
-          );
-        };
-
-        clearStale(() => {
-          // The roster is what the barrier counts against, so a change to it
-          // can open or close the gate, in the group joined and the group left.
-          this.recountBarrier(class_id, new_group_id);
-          if (studentGroupId && Number(studentGroupId) !== Number(new_group_id)) {
-            this.recountBarrier(class_id, studentGroupId);
+      // A moved student's confirmation and step-completion rows describe the
+      // group they LEFT. Left in place they are ignored by the current-member
+      // joins, but the moment the student is moved back (a mis-click, undone)
+      // they would reappear as already confirmed and already finished for a
+      // selection they never saw. Clear them before recounting.
+      const clearStale = (cb: () => void) => {
+        this.db.query(
+          'DELETE gc FROM GroupConfirmations gc JOIN Users u ON u.id = gc.student_id WHERE u.email = ? AND u.class = ?',
+          [email, class_id],
+          (e1) => {
+            if (e1) console.error('Could not clear stale confirmations on reassign:', e1);
+            this.db.query(
+              'DELETE sc FROM Step_Completion sc JOIN Users u ON u.id = sc.student_id WHERE u.email = ? AND u.class = ?',
+              [email, class_id],
+              (e2) => {
+                if (e2) console.error('Could not clear stale completions on reassign:', e2);
+                cb();
+              }
+            );
           }
+        );
+      };
 
-          res.json({
-            message: 'Student reassigned successfully',
-            email,
-            new_group_id,
-            class_id,
-          });
+      clearStale(() => {
+        // The roster is what the barrier counts against, so a change to it can
+        // open or close the gate, in the group joined and the group left.
+        this.recountBarrier(class_id, new_group_id);
+        if (studentGroupId && Number(studentGroupId) !== Number(new_group_id)) {
+          this.recountBarrier(class_id, studentGroupId);
+        }
+
+        res.json({
+          message: 'Student reassigned successfully',
+          email,
+          new_group_id,
+          class_id,
         });
       });
     });
@@ -617,7 +629,7 @@ export class GroupController {
     });
   };
 
-  deleteStudent = (req: AuthRequest, res: Response): void => {
+  deleteStudent = async (req: AuthRequest, res: Response): Promise<void> => {
     const { email, class_id } = req.body;
 
     if (!email || !class_id) {
@@ -625,36 +637,33 @@ export class GroupController {
       return;
     }
 
-    const getGroupQuery = 'SELECT group_id FROM Users WHERE email = ? AND class = ?';
+    let studentGroupId: number | undefined;
+    try {
+      studentGroupId = await this.currentGroupId(email, class_id);
+    } catch (lookupErr) {
+      console.error('Error fetching student group:', lookupErr);
+      res.status(500).json({ error: 'Failed to fetch student information' });
+      return;
+    }
 
-    this.db.query<RowDataPacket[]>(getGroupQuery, [email, class_id], (lookupErr, rows) => {
-      if (lookupErr) {
-        console.error('Error fetching student group:', lookupErr);
-        res.status(500).json({ error: 'Failed to fetch student information' });
-        return;
-      }
-
-      const studentGroupId = rows[0]?.group_id;
-
-      this.db.query(
-        'DELETE FROM Users WHERE email = ? AND class = ?',
-        [email, class_id],
-        (err, result: any) => {
-          if (err) {
-            res.status(500).json({ error: 'Failed to delete student' });
-            return;
-          }
-          if (result.affectedRows === 0) {
-            res.status(404).json({ error: 'Student not found' });
-            return;
-          }
-
-          if (studentGroupId) this.recountBarrier(class_id, studentGroupId);
-
-          res.json({ message: 'Student deleted successfully', email, class_id });
+    this.db.query(
+      'DELETE FROM Users WHERE email = ? AND class = ?',
+      [email, class_id],
+      (err, result: any) => {
+        if (err) {
+          res.status(500).json({ error: 'Failed to delete student' });
+          return;
         }
-      );
-    });
+        if (result.affectedRows === 0) {
+          res.status(404).json({ error: 'Student not found' });
+          return;
+        }
+
+        if (studentGroupId) this.recountBarrier(class_id, studentGroupId);
+
+        res.json({ message: 'Student deleted successfully', email, class_id });
+      }
+    );
   };
 
   getProgress = (req: AuthRequest, res: Response): void => {

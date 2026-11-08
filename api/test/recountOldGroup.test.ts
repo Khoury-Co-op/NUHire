@@ -27,13 +27,14 @@ function fakeDb(currentGroup: number | null) {
   const db = {
     query: (sql: string, params: unknown[], cb: (err: null, result: unknown) => void) => {
       calls.push({ sql, params });
-      cb(
-        null,
-        sql.startsWith('SELECT group_id') ? [{ group_id: currentGroup }] : { affectedRows: 1 }
-      );
+      cb(null, { affectedRows: 1 });
     },
     promise: () => ({
       query: async (sql: string, params: unknown[]) => {
+        if (sql.startsWith('SELECT group_id')) {
+          calls.push({ sql, params });
+          return [[{ group_id: currentGroup }]];
+        }
         const group = GROUPS[Number(params[0])] ?? { members: [], completions: [] };
         return [sql.includes('FROM Users') ? group.members : group.completions];
       },
@@ -81,19 +82,19 @@ describe('the group a student leaves is recounted', () => {
     expect(emits).toEqual([]);
   });
 
-  it('looks up the old group by email and class on reassign', () => {
+  it('looks up the old group by email and class on reassign', async () => {
     const { db, calls } = fakeDb(2);
     const body = { email: 's11@x.edu', new_group_id: 3, class_id: 9001 };
-    new GroupController(db, fakeIo().io).reassignStudent({ body } as AuthRequest, res);
+    await new GroupController(db, fakeIo().io).reassignStudent({ body } as AuthRequest, res);
     const lookup = calls.find((c) => c.sql.startsWith('SELECT group_id'));
     expect(lookup?.sql).toMatch(/WHERE email = \? AND class = \?/);
     expect(lookup?.params).toEqual(['s11@x.edu', 9001]);
   });
 
-  it('looks up the old group by email and class on delete', () => {
+  it('looks up the old group by email and class on delete', async () => {
     const { db, calls } = fakeDb(2);
     const body = { email: 's11@x.edu', class_id: 9001 };
-    new GroupController(db, fakeIo().io).deleteStudent({ body } as AuthRequest, res);
+    await new GroupController(db, fakeIo().io).deleteStudent({ body } as AuthRequest, res);
     const lookup = calls.find((c) => c.sql.startsWith('SELECT group_id'));
     expect(lookup?.sql).toMatch(/WHERE email = \? AND class = \?/);
     expect(lookup?.params).toEqual(['s11@x.edu', 9001]);
