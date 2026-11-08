@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Popup from './popup';
 import { useAuth } from './AuthContext';
 import type { ClassInfo } from '../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 /** Students per group when the professor has not said otherwise. Four members
  *  reviewing ten resumes is what the activity is written for. */

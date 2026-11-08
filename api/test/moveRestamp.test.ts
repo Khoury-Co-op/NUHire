@@ -33,10 +33,10 @@ const io = { to: () => ({ emit: () => {} }) };
 const res = { status: () => res, json: () => res } as unknown as Response;
 
 describe('moving a student re-stamps present_at', () => {
-  it('on reassign', () => {
+  it('on reassign', async () => {
     const { db, calls, params } = fakeDb();
     const body = { email: 's@x.edu', new_group_id: 2, class_id: 42 };
-    new GroupController(db, io).reassignStudent({ body } as AuthRequest, res);
+    await new GroupController(db, io).reassignStudent({ body } as AuthRequest, res);
     expect(calls[0]).toMatch(/UPDATE Users SET group_id = \?/);
     // Restamped only if already present: a student who never showed up is still absent.
     expect(calls[0]).toMatch(/present_at = IF\(present_at IS NULL, NULL, \?\)/);

@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import type { AcceptedOffer, Group, PendingOffer, Student } from '../../../types';
+import CandidatePopup from '../candidatePopup';
 
 export interface ScrollState {
   canScrollDown: boolean;
@@ -53,6 +55,7 @@ export function GroupCard({
   onStart,
 }: GroupCardProps) {
   const showAcceptedOverlay = acceptedOffer && !isDismissed;
+  const [showCandidate, setShowCandidate] = useState(false);
 
   return (
     <div
@@ -85,7 +88,13 @@ export function GroupCard({
             <p className="text-lg font-semibold text-gray-800 mb-2">
               Group {group.group_id} wants to offer:
             </p>
-            <p className="text-xl font-bold text-red-600 mb-4">{groupOffer.candidateName}</p>
+            <button
+              onClick={() => setShowCandidate(true)}
+              className="block mx-auto text-xl font-bold text-red-600 mb-4 underline hover:text-red-800"
+              title="See why the group picked this candidate"
+            >
+              {groupOffer.candidateName}
+            </button>
             <p className="text-sm text-gray-600 mb-6">Do you approve this offer?</p>
             <div className="flex space-x-3 justify-center">
               <button
@@ -119,6 +128,15 @@ export function GroupCard({
             </div>
           </div>
         </div>
+      )}
+
+      {groupOffer && showCandidate && (
+        <CandidatePopup
+          classId={groupOffer.classId}
+          groupId={groupOffer.groupId}
+          candidateId={groupOffer.candidateId}
+          onDismiss={() => setShowCandidate(false)}
+        />
       )}
 
       <div className="flex justify-between items-center mb-4">

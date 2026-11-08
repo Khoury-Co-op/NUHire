@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { ClassInfo, Group, Student, User } from '../../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../../lib/api';
 
 // The teacher panel's class, roster and group data: what the class picker
 // selects and what the group cards are drawn from.

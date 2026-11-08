@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS ...;
 Also update `Pandployer.sql`, so new databases get the change, and add a row to
 the migration list at the bottom of this file.
 
+Then, once the migration has run on your local database, run `npm run db:pull`
+and commit `api/prisma/schema.prisma` in the same PR. Prisma's types come from
+that file, and CI fails the PR if it does not match the migrated database.
+
 CI fails a PR that adds a migration without both marker lines, numbers it out
 of order, or edits an existing one. It also runs every migration with dbmate,
 the way the API does at start, and then all of them twice more.
