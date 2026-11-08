@@ -9,6 +9,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import type { Pool as PromisePool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
+import { extractPdfText } from '../config/pdfText';
 
 // Every group-scoped table a reset wipes. The reset deletes from this list and
 // the reset preview counts from it, so the warning the professor reads cannot
@@ -159,8 +160,10 @@ export class JobController {
     }
 
     try {
-      const sql = 'INSERT INTO job_descriptions (title, file_path, class_id) VALUES (?, ?, ?)';
-      this.db.query(sql, [title, filePath, class_id], (err) => {
+      const text = await extractPdfText('job_descriptions', filePath);
+      const sql =
+        'INSERT INTO job_descriptions (title, file_path, class_id, extracted_text) VALUES (?, ?, ?, ?)';
+      this.db.query(sql, [title, filePath, class_id, text], (err) => {
         if (err) {
           console.error('Error inserting into DB:', err);
           res.status(500).json({ error: 'Database error' });

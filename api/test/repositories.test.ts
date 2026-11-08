@@ -4,6 +4,7 @@ import { Prisma } from '../src/generated/prisma/client';
 import { createFactsRepository } from '../src/repository/facts.repository';
 import { createModeratorRepository } from '../src/repository/moderator.repository';
 import { createNotesRepository } from '../src/repository/notes.repository';
+import { createPdfTextRepository } from '../src/repository/pdfText.repository';
 
 // The controllers are tested against fake repositories, so these check the
 // other half: each repository asks Prisma for the right rows.
@@ -70,5 +71,36 @@ describe('notes repository', () => {
         orderBy: { created_at: 'desc' },
       })
     );
+  });
+});
+
+describe('pdf text repository', () => {
+  function withTables() {
+    const resumes = { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({})) };
+    const jobs = { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({})) };
+    const db = { resume_pdfs: resumes, job_descriptions: jobs } as unknown as DbClient;
+    return { pdfs: createPdfTextRepository(db), resumes, jobs };
+  }
+
+  it('lists only rows with no text, in one class when asked', async () => {
+    const { pdfs, resumes, jobs } = withTables();
+    await pdfs.listWithoutText('Resume_pdfs', 101);
+    await pdfs.listWithoutText('job_descriptions');
+    expect(resumes.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { extracted_text: null, class_id: 101 } })
+    );
+    expect(jobs.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { extracted_text: null } })
+    );
+  });
+
+  it('never overwrites text another run already stored', async () => {
+    const { pdfs, resumes, jobs } = withTables();
+    await pdfs.saveText('job_descriptions', 7, 'Software Engineer Co-op');
+    expect(jobs.updateMany).toHaveBeenCalledWith({
+      where: { id: 7, extracted_text: null },
+      data: { extracted_text: 'Software Engineer Co-op' },
+    });
+    expect(resumes.updateMany).not.toHaveBeenCalled();
   });
 });
