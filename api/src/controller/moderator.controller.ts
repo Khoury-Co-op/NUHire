@@ -1,9 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../models/AuthRequest';
 import { Pool } from 'mysql2';
+import { backfillPdfText } from '../config/pdfText';
+import { PdfTextRepository } from '../repository/pdfText.repository';
 
 export class ModeratorController {
-  constructor(private db: Pool) {}
+  constructor(
+    private db: Pool,
+    private pdfs: PdfTextRepository
+  ) {}
 
   addModeratorCRN = async (req: AuthRequest, res: Response): Promise<void> => {
     const { admin_email, crn } = req.body;
@@ -226,6 +231,9 @@ export class ModeratorController {
       }
 
       await conn.commit();
+
+      // After the commit, so reading 15 files does not hold the transaction open.
+      await backfillPdfText(this.pdfs, Number(crn));
 
       res.status(201).json({
         admin_email,

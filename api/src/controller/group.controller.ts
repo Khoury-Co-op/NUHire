@@ -38,6 +38,21 @@ export class GroupController {
     );
   }
 
+  // The group a student is in before a change moves them out of it, so that
+  // group's barrier can be recounted too.
+  private async currentGroupId(
+    email: string,
+    classId: number | string
+  ): Promise<number | undefined> {
+    const [rows] = await this.db
+      .promise()
+      .query<(RowDataPacket & Pick<User, 'group_id'>)[]>(
+        'SELECT group_id FROM Users WHERE email = ? AND class = ?',
+        [email, classId]
+      );
+    return rows[0]?.group_id ?? undefined;
+  }
+
   getGroups = async (req: AuthRequest, res: Response): Promise<void> => {
     const { class: classId } = req.query;
 
@@ -175,13 +190,22 @@ export class GroupController {
     });
   };
 
-  reassignStudent = (req: AuthRequest, res: Response): void => {
+  reassignStudent = async (req: AuthRequest, res: Response): Promise<void> => {
     const { email, new_group_id, class_id } = req.body;
 
     if (!email || !new_group_id || !class_id) {
       res.status(400).json({
         error: 'Missing required fields: email, new_group_id, class_id',
       });
+      return;
+    }
+
+    let studentGroupId: number | undefined;
+    try {
+      studentGroupId = await this.currentGroupId(email, class_id);
+    } catch (lookupErr) {
+      console.error('Error fetching student group:', lookupErr);
+      res.status(500).json({ error: 'Failed to fetch student information' });
       return;
     }
 
@@ -230,11 +254,11 @@ export class GroupController {
 
       clearStale(() => {
         // The roster is what the barrier counts against, so a change to it can
-        // open or close the gate. Re-evaluating here is what stops a group that
-        // was waiting on somebody who has just been moved out from waiting
-        // forever. (The OLD group is not recounted: this handler never learns
-        // which group the student came from. That is TCH-16.)
+        // open or close the gate, in the group joined and the group left.
         this.recountBarrier(class_id, new_group_id);
+        if (studentGroupId && Number(studentGroupId) !== Number(new_group_id)) {
+          this.recountBarrier(class_id, studentGroupId);
+        }
 
         res.json({
           message: 'Student reassigned successfully',
@@ -563,7 +587,7 @@ export class GroupController {
 
       const existingStudent = checkResults[0];
 
-      if (existingStudent.class === class_id) {
+      if (Number(existingStudent.class) === Number(class_id)) {
         res.status(409).json({ error: 'Student already exists in this class' });
         return;
       }
@@ -605,11 +629,20 @@ export class GroupController {
     });
   };
 
-  deleteStudent = (req: AuthRequest, res: Response): void => {
+  deleteStudent = async (req: AuthRequest, res: Response): Promise<void> => {
     const { email, class_id } = req.body;
 
     if (!email || !class_id) {
       res.status(400).json({ error: 'Missing required fields: email, class_id' });
+      return;
+    }
+
+    let studentGroupId: number | undefined;
+    try {
+      studentGroupId = await this.currentGroupId(email, class_id);
+    } catch (lookupErr) {
+      console.error('Error fetching student group:', lookupErr);
+      res.status(500).json({ error: 'Failed to fetch student information' });
       return;
     }
 
@@ -625,6 +658,9 @@ export class GroupController {
           res.status(404).json({ error: 'Student not found' });
           return;
         }
+
+        if (studentGroupId) this.recountBarrier(class_id, studentGroupId);
+
         res.json({ message: 'Student deleted successfully', email, class_id });
       }
     );

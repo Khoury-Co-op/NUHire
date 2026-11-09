@@ -205,7 +205,7 @@ export class App {
     this.app.use('/interview', interviewRoutes(this.db, this.io));
     this.app.use('/jobs', jobRoutes(this.db, this.io, this.onlineStudents));
     this.app.use('/groups', groupRoutes(this.db, this.io));
-    this.app.use('/moderator', moderatorRoutes(this.db));
+    this.app.use('/moderator', moderatorRoutes(this.db, this.prisma));
     this.app.use('/notes', noteRoutes(this.prisma));
     this.app.use('/offers', offerRoutes(this.db));
     this.app.use('/progress', progressRoutes(this.db, this.io));

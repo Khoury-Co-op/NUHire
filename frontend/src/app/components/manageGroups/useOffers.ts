@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { AcceptedOffer, CandidateOption, PendingOffer, User } from '../../../types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../../lib/api';
 
 // The selected class's candidates and the groups' pending and accepted offers,
 // kept current by the offer socket events.
