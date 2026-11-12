@@ -67,7 +67,10 @@ if (schemaChanged && added.length === 0) {
   );
 }
 
-const existing = git('ls-tree', '--name-only', `${mergeBase}:${DIR}`)
+// A base branch from before dbmate (Khoury-Co-op dev, say) has no migrations
+// folder at all, so every migration in the PR is new and numbering starts at 001.
+const baseHasDir = git('ls-tree', '--name-only', mergeBase, `${DIR}/`) !== '';
+const existing = (baseHasDir ? git('ls-tree', '--name-only', `${mergeBase}:${DIR}`) : '')
   .split('\n')
   .filter((f) => f.endsWith('.sql'));
 let next = Math.max(0, ...existing.map((f) => Number(NAME.exec(f)?.[1] ?? 0))) + 1;
