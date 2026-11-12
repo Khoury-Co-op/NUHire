@@ -1,9 +1,9 @@
 services:
-- type: web
-  runtime: docker
-  name: keycloak
-  envVars:
-    - key: KEYCLOAK_ADMIN
-      value: NUHire
-    - key: KEYCLOAK_ADMIN_PASSWORD
-      value: NUHire0207!
+  - type: web
+    runtime: docker
+    name: keycloak
+    envVars:
+      - key: KEYCLOAK_ADMIN
+        value: NUHire
+      - key: KEYCLOAK_ADMIN_PASSWORD
+        value: NUHire0207!

@@ -1,0 +1,415 @@
+# Checks every pull request before it can merge (INFRA-2).
+#
+# Nothing deploys from this repo yet: deploy.yml only runs in Khoury-Co-op/NUHire,
+# which holds the Coolify secrets. Once a release lands there, these jobs are
+# the only thing standing between a broken PR and a room of 30 students.
+#
+# Branch protection requires exactly one check, "All checks passed", which is
+# green only when every blocking job succeeded. Require that one, not the
+# individual jobs: a job that is skipped or renamed then fails the gate instead
+# of silently dropping out of the required list. The ruleset that enforces it
+# is .github/rulesets/main.json.
+#
+# Spelling runs on every PR but is left out of the gate, so its findings show
+# without blocking a merge.
+#
+# Code review against AGENTS.md is CodeRabbit's job (.coderabbit.yaml). It
+# comments on every PR and never blocks; a lead's approval is the gate.
+#
+# When anything fails, the gate says what and where: a comment on the PR (which
+# notifies its author), the run's summary page, and inline markers on the
+# offending lines in "Files changed".
+#
+# GitHub-hosted runners on purpose: the Khoury self-hosted runner is for
+# deploys, and CI should not go down when it does.
+
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to the same PR makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Step names below are what the failure report quotes ("failed at step
+# Typecheck"), so keep them short and specific.
+jobs:
+  format:
+    name: Format (prettier)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # npm ci, not npm install: a lockfile that is out of sync with
+      # package.json fails here instead of quietly resolving new versions.
+      - name: Install (npm ci)
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      # Prettier only prints file names, so mark each one on the PR as well.
+      - name: Mark unformatted files
+        if: failure()
+        run: |
+          npx prettier --list-different . | while read -r f; do
+            echo "::error file=$f,title=Not formatted::Run npm run format and commit the result."
+          done
+
+  api:
+    name: API typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # setup-node also registers a tsc problem matcher, which turns each type
+      # error into a marker on the exact line in "Files changed".
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Install (npm ci)
+        run: npm ci --prefix api
+      # The client is generated from api/prisma/schema.prisma and not committed,
+      # so tsc cannot see its types until this has run.
+      - name: Generate Prisma client
+        run: npm run db:generate --prefix api
+      - name: Typecheck
+        run: npx --prefix api tsc -p api --noEmit
+      - name: Build
+        run: npm run build --prefix api
+
+  frontend:
+    name: Frontend typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (npm ci)
+        run: npm ci --prefix frontend
+      - name: Typecheck
+        run: npx --prefix frontend tsc -p frontend --noEmit
+      # NEXT_PUBLIC_* values are inlined at build time. The build only needs a
+      # well-formed value to succeed; it is never served from here.
+      - name: Build
+        run: npm run build --prefix frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:5001
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # The images are what a host actually runs. A Dockerfile can break while
+      # both npm builds above still pass.
+      - name: Build API image
+        run: docker build -f api/dockerfile -t nuhire-api:ci .
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile.prod -t nuhire-frontend:ci frontend
+      # npm run all is everyone's local setup, so a broken dev stack blocks the
+      # whole team even though production is fine.
+      - name: Check local dev compose
+        run: docker compose -f compose.dev.yaml config -q
+      - name: Build local dev API image
+        run: docker build -f api/dockerfile.dev -t nuhire-api-dev:ci api
+
+  # Lint and spelling check only the files a PR adds or changes. Older files
+  # still have problems from before these checks existed; a PR that edits one of
+  # them has to fix that file's problems too.
+  lint:
+    name: Lint (eslint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Full history, to find which files the PR changed.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install (npm ci)
+        run: npm ci
+      # Errors fail the run; warnings (react-hooks/exhaustive-deps) are listed
+      # in the log without failing it. See eslint.config.mjs for why. setup-node
+      # turns eslint's output into markers on the offending lines.
+      - name: Lint changed files
+        run: |
+          set -euo pipefail
+          base=$(git merge-base "origin/${GITHUB_BASE_REF:-main}" HEAD)
+          files=$(git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs')
+          if [ -z "$files" ]; then echo "No changed files to lint."; exit 0; fi
+          echo "Linting:"; echo "$files"
+          echo "$files" | tr '\n' '\0' | xargs -0 npx eslint --no-warn-ignored
+
+  spelling:
+    name: Spelling (cspell)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install (npm ci)
+        run: npm ci
+      # A real name or term that is flagged goes in cspell.json's "words"; a
+      # typo gets fixed where it is.
+      - name: Check spelling in changed files
+        run: |
+          set -euo pipefail
+          base=$(git merge-base "origin/${GITHUB_BASE_REF:-main}" HEAD)
+          files=$(git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.md' '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.json' '*.yml' '*.yaml' '*.sql')
+          if [ -z "$files" ]; then echo "No changed files to check."; exit 0; fi
+          echo "$files" | tr '\n' '\0' | xargs -0 npx cspell --no-progress --no-must-find-files
+
+  tests:
+    name: Tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            frontend/package-lock.json
+      - name: Install (npm ci)
+        run: npm ci --prefix api && npm ci --prefix frontend
+      # Controllers under test import config/database.ts, which loads the client.
+      - name: Generate Prisma client
+        run: npm run db:generate --prefix api
+      - name: API tests
+        run: npm test --prefix api
+      - name: Frontend tests
+        run: npm test --prefix frontend
+
+  database:
+    name: Database changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: nuhire
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      # Full history, to compare migrations against the PR's base.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Check migration rules
+        run: node .github/ci/check-migrations.mjs
+      - name: Load schema and seed
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci nuhire < database-files/Pandployer.sql
+          mysql -h 127.0.0.1 -uroot -pci nuhire < .local/seed.sql
+      # The API starts by running dbmate, which runs only each file's up block
+      # and refuses a file whose markers it cannot parse. The mysql loop below
+      # runs whole files, so it would pass a migration the API cannot start
+      # with. No schema_migrations yet, as on an existing database's first start.
+      - name: Install dbmate (npm ci)
+        run: npm ci --prefix api
+      - name: Apply migrations with dbmate
+        run: npm run db:migrate --prefix api
+        env:
+          DATABASE_URL: mysql://root:ci@127.0.0.1:3306/nuhire
+      # schema.prisma is a copy of what dbmate builds, and a migration merged
+      # without `npm run db:pull` leaves Prisma's types wrong in a way tsc
+      # cannot see. The session store creates `sessions` when the API first
+      # boots, so it is in schema.prisma but not Pandployer.sql; create it from
+      # the store's own file. `--print` ends with two blank lines the written
+      # file does not have, and $(...) drops trailing newlines from both sides.
+      - name: Check schema.prisma matches the migrations
+        working-directory: api
+        env:
+          DATABASE_URL: mysql://root:ci@127.0.0.1:3306/nuhire
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci nuhire < node_modules/express-mysql-session/schema.sql
+          pulled=$(npx prisma db pull --print)
+          if ! diff -u --label api/prisma/schema.prisma --label 'prisma db pull' <(printf '%s\n' "$(cat prisma/schema.prisma)") <(printf '%s\n' "$pulled"); then
+            echo "::error file=api/prisma/schema.prisma,title=schema.prisma is out of date::Run npm run db:pull and commit the result"
+            exit 1
+          fi
+      # The README requires every migration to be safe to run twice, so run
+      # them all twice, in order.
+      - name: Apply migrations twice
+        run: |
+          for pass in 1 2; do
+            for f in database-files/migrations/[0-9]*.sql; do
+              echo "pass $pass: $f"
+              mysql -h 127.0.0.1 -uroot -pci nuhire < "$f" || { echo "::error file=$f,title=Migration failed::$f failed on pass $pass"; exit 1; }
+            done
+          done
+
+  # Seeds the simulated 30-student class (INFRA-3) and checks every scenario. It
+  # logs in through real Keycloak and writes rows by the real API's rules, so it
+  # breaks when the login flow, the realm or a table changes; running it here
+  # stops it rotting.
+  seed:
+    name: Simulated class (seed + check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install (npm ci)
+        run: npm ci
+      - name: Start MySQL, Keycloak and the API
+        run: docker compose -f compose.dev.yaml up -d --wait --wait-timeout 420 db keycloak api
+      - name: Seed and check every scenario
+        run: |
+          for scenario in fresh mid-resume-review waiting-on-group interview-stage offers-pending; do
+            echo "::group::$scenario"
+            npm run seed:reset -- --scenario="$scenario"
+            npm run seed:check -- --scenario="$scenario"
+            echo "::endgroup::"
+          done
+      - name: Wipe the simulated class
+        run: npm run seed:wipe -- --yes
+      - name: Show container logs
+        if: failure()
+        run: docker compose -f compose.dev.yaml logs --no-color --tail=150
+
+  audit:
+    name: Security audit (new vulnerabilities)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # Audits the lockfiles directly, no install needed.
+      - name: Compare against the base branch
+        run: node .github/ci/audit-new.mjs
+
+  gate:
+    name: All checks passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: [format, lint, api, frontend, tests, docker, database, seed, audit]
+    # always(), so this job still runs and reports failure when a job it needs
+    # failed or was cancelled. Without it, the gate would be skipped, and
+    # branch protection treats a skipped check as passing.
+    if: always()
+    permissions:
+      actions: read # to look up which step of which job failed
+      pull-requests: write # to post the report on the PR
+    steps:
+      - name: Report results
+        uses: actions/github-script@v7
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        with:
+          script: |
+            const needs = JSON.parse(process.env.NEEDS);
+            const failedIds = Object.keys(needs).filter((id) => needs[id].result !== 'success');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Which step failed, and a link to its log. Best effort: the
+            // pass/fail decision comes from `needs` above, never from this.
+            let failedJobs = [];
+            try {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId,
+                attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT),
+              });
+              failedJobs = jobs
+                .filter((j) => j.status === 'completed' && !['success', 'skipped'].includes(j.conclusion))
+                .filter((j) => !j.name.endsWith('All checks passed'))
+                .map((j) => {
+                  const step = (j.steps || []).find((s) => s.conclusion === 'failure' || s.conclusion === 'cancelled');
+                  return `- **${j.name.replace(/^.* \/ /, '')}** ${j.conclusion} at step \`${step ? step.name : 'setup'}\`. [Open the log](${j.html_url})`;
+                });
+            } catch (e) {
+              core.warning(`Could not list jobs for the report: ${e.message}`);
+            }
+            if (failedIds.length && !failedJobs.length) {
+              failedJobs = failedIds.map((id) => `- **${id}** ${needs[id].result}. [Open the run](${runUrl})`);
+            }
+
+            const marker = '<!-- nuhire-ci-report -->';
+            const body = failedIds.length
+              ? [
+                  marker,
+                  `### ❌ ${failedIds.length} check${failedIds.length === 1 ? '' : 's'} failed. This PR cannot merge until they pass.`,
+                  '',
+                  ...failedJobs,
+                  '',
+                  'Type errors, lint errors, unformatted files and failed migrations are also marked on the exact lines in **Files changed**. Failed tests, spelling mistakes and new vulnerabilities are listed in each job\'s log and summary. Push a fix and this comment updates itself.',
+                ].join('\n')
+              : [marker, '### ✅ All checks passed', '', `[View the run](${runUrl})`].join('\n');
+
+            await core.summary.addRaw(body.replace(marker, '')).write();
+
+            // Comment on the PR so the author is notified. Skipped on PRs from
+            // forks, whose token cannot write comments; the summary page and
+            // GitHub's failure email still carry the report.
+            const pr = context.payload.pull_request;
+            const fromFork = pr && pr.head.repo && pr.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`;
+            if (pr && !fromFork) {
+              try {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                });
+                const mine = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
+                if (mine) {
+                  await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body });
+                } else if (failedIds.length) {
+                  // Only start a thread when something is wrong; a green PR
+                  // does not need a comment.
+                  await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body });
+                }
+              } catch (e) {
+                core.warning(`Could not comment on the PR: ${e.message}`);
+              }
+            }
+
+            if (failedIds.length) {
+              core.setFailed(`Failed: ${failedIds.map((id) => `${id} (${needs[id].result})`).join(', ')}`);
+            }

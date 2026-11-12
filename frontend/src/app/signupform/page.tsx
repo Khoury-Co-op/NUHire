@@ -1,10 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Slideshow from "../components/slideshow";
-import Image from "next/image";
-
-// Define API base URL with fallback
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import Slideshow from '../components/slideshow';
+import Image from 'next/image';
+import { API_BASE_URL } from '../../lib/api';
 
 export default function SignupDetails() {
   const [firstName, setFirstName] = useState('');
@@ -15,24 +13,20 @@ export default function SignupDetails() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    console.log("Message updated:", message);
-  }, [message])
-
-  useEffect(() => {
     const fetchUserDetails = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const userEmail = urlParams.get('email');
       const userFirstName = urlParams.get('firstName');
       const userLastName = urlParams.get('lastName');
-      
+
       if (userEmail) {
         setEmail(userEmail);
-        
+
         // Set first and last name from URL parameters if available
         if (userFirstName) {
           setFirstName(userFirstName);
         }
-        
+
         if (userLastName) {
           setLastName(userLastName);
         }
@@ -43,10 +37,6 @@ export default function SignupDetails() {
 
     fetchUserDetails();
   }, []);
-
-  useEffect(() => {
-    console.log("email changed:", email);
-  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,30 +50,25 @@ export default function SignupDetails() {
       return;
     }
 
-            console.log('Document cookies:', document.cookie);
-
     if (affiliation === 'student') {
       try {
-        const checkRes = await fetch(
-          `${API_BASE_URL}/users/check/${email}`,
-          { method: 'GET', credentials: 'include' }
-        );
-        
-console.log('Response status:', checkRes.status);
-console.log('Response ok:', checkRes.ok);
-console.log('Response type:', checkRes.type);
+        const checkRes = await fetch(`${API_BASE_URL}/users/check/${email}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
 
         if (!checkRes.ok) {
           setMessage('Error checking your registration status.');
           setSubmitting(false);
           return;
         }
-        
+
         const checkData = await checkRes.json();
-        console.log("Check data for student affiliation:", checkData);
-        
-        if (checkData.group_id === null  || checkData.class_id === null) {
-          setMessage('Student is not registered by instructor. Please contact your instructor to be added to the system.');
+
+        if (checkData.group_id === null || checkData.class_id === null) {
+          setMessage(
+            'Student is not registered by instructor. Please contact your instructor to be added to the system.'
+          );
           setSubmitting(false);
           return; // CRITICAL: Stop execution here
         }
@@ -93,22 +78,21 @@ console.log('Response type:', checkRes.type);
         setSubmitting(false);
         return;
       }
-      
+
       try {
-        const emailRes = await fetch(
-          `${API_BASE_URL}/moderator/classes/${email}`,
-          { method: 'GET', credentials: 'include' }
-        );
-        
+        const emailRes = await fetch(`${API_BASE_URL}/moderator/classes/${email}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
         if (!emailRes.ok) {
           setMessage('Please check your affiliation and try again.');
           setSubmitting(false);
           return;
         }
-        
+
         const emailData = await emailRes.json();
-        console.log(emailData);
-        
+
         if (emailData.length !== 0) {
           setMessage('Please use a student email to sign up.');
           setSubmitting(false);
@@ -124,19 +108,19 @@ console.log('Response type:', checkRes.type);
 
     if (affiliation === 'admin') {
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/moderator/classes/${email}`,
-          { method: 'GET', credentials: 'include' }
-        );
-        
+        const res = await fetch(`${API_BASE_URL}/moderator/classes/${email}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
         if (!res.ok) {
           setMessage('Please check your affiliation and try again.');
           setSubmitting(false);
           return;
         }
-        
+
         const crns = await res.json();
-        
+
         if (crns.length === 0) {
           setMessage('Please use an instructor email to sign up.');
           setSubmitting(false);
@@ -151,21 +135,19 @@ console.log('Response type:', checkRes.type);
     }
 
     // Create user object
-    const user = { 
-      First_name: firstName, 
-      Last_name: lastName, 
-      Email: email, 
+    const user = {
+      First_name: firstName,
+      Last_name: lastName,
+      Email: email,
       Affiliation: affiliation,
     };
-
-    console.log('Submitting user:', user);
 
     try {
       const response = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
-        credentials: 'include'
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -190,41 +172,44 @@ console.log('Response type:', checkRes.type);
       <div className="fixed inset-0 z-0">
         <Slideshow />
       </div>
-      <div className="fixed inset-0 bg-sand/80 z-5" />
+      <div className="fixed inset-0 bg-sand/80 z-[5]" />
       <div className="w-full flex justify-center p-4 bg-navy/90 backdrop-blur-sm shadow-md font-rubik text-lg fixed top-0 z-20">
         <h1 className="text-6xl font-extrabold mb-1 text-northeasternRed">NUHire</h1>
       </div>
-      <div className="z-10" >
+      <div className="z-10">
         <h1 className="text-3xl font-bold text-navy mb-6">Complete Your Signup</h1>
 
-        <form onSubmit={handleSubmit} className="w-full max-w-md bg-navy shadow-lg rounded-lg p-6 flex flex-col gap-4">
-          <input 
-            type="text" 
-            placeholder="First Name *" 
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-md bg-navy shadow-lg rounded-lg p-6 flex flex-col gap-4"
+        >
+          <input
+            type="text"
+            placeholder="First Name *"
             className="w-full px-4 py-3 border border-wood bg-springWater rounded-md bg-gray-200 cursor-not-allowed"
-            value={firstName} 
+            value={firstName}
             disabled
           />
 
-          <input 
-            type="text" 
-            placeholder="Last Name *" 
+          <input
+            type="text"
+            placeholder="Last Name *"
             className="w-full px-4 py-3 border border-wood bg-springWater rounded-md bg-gray-200 cursor-not-allowed"
-            value={lastName} 
+            value={lastName}
             disabled
           />
 
-          <input 
-            type="email" 
+          <input
+            type="email"
             className="w-full px-4 py-3 border border-wood bg-springWater rounded-md bg-gray-200 cursor-not-allowed"
-            value={email} 
-            disabled 
+            value={email}
+            disabled
           />
 
-          <select 
-            value={affiliation} 
-            className="w-full px-4 py-3 border border-wood bg-springWater rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-            onChange={(e) => setAffiliation(e.target.value)} 
+          <select
+            value={affiliation}
+            className="w-full px-4 py-3 border border-wood bg-springWater rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => setAffiliation(e.target.value)}
             required
           >
             <option value="none">Select Affiliation *</option>
@@ -232,21 +217,21 @@ console.log('Response type:', checkRes.type);
             <option value="admin">Faculty</option>
           </select>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className={`w-full bg-northeasternWhite text-northeasternRed font-semibold px-4 py-3 rounded-md hover:bg-northeasternRed hover:text-northeasternWhite transition ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={submitting}
           >
             {submitting ? 'Please wait...' : 'Submit'}
           </button>
-        </form>   
+        </form>
         {message && (
           <div className="flex justify-center">
             <div className="mt-4 text-northeasternBlack px-4 py-3 rounded text-center w-full max-w-md">
               {message}
             </div>
           </div>
-        )} 
+        )}
       </div>
       <footer className="w-full flex justify-center p-2 bg-navy/90 backdrop-blur-sm shadow-md font-rubik text-2xl fixed bottom-0 z-20">
         <a
@@ -255,8 +240,8 @@ console.log('Response type:', checkRes.type);
           target="_blank"
           rel="noopener noreferrer"
         >
-        <Image src="/discord.svg" alt="Discord icon" width={25} height={25} />
-        <span className="ml-2">Join our Discord</span>
+          <Image src="/discord.svg" alt="Discord icon" width={25} height={25} />
+          <span className="ml-2">Join our Discord</span>
         </a>
       </footer>
     </div>

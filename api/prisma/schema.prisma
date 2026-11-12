@@ -1,0 +1,333 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Candidates {
+  id            Int             @id @default(autoincrement())
+  resume_id     Int             @unique(map: "resume_id_UNIQUE")
+  interview     String          @db.VarChar(255)
+  f_name        String          @db.VarChar(45)
+  l_name        String          @db.VarChar(45)
+  Resume_pdfs   Resume_pdfs     @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_candidates_resume")
+  MakeOfferPage MakeOfferPage[]
+
+  @@index([resume_id], map: "resume_id")
+}
+
+model GroupConfirmations {
+  group_id     Int
+  class        Int
+  student_id   Int
+  confirmed_at DateTime @default(now()) @db.Timestamp(0)
+  Users        Users    @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "GroupConfirmations_ibfk_1")
+
+  @@id([group_id, class, student_id])
+  @@index([student_id], map: "student_id")
+}
+
+model GroupsInfo {
+  id        Int       @id @default(autoincrement())
+  class_id  Int
+  started   Int       @default(0) @db.TinyInt
+  group_id  Int?
+  Moderator Moderator @relation(fields: [class_id], references: [crn], onDelete: Cascade, onUpdate: NoAction, map: "groupsinfo_ibfk_1")
+
+  @@unique([class_id, id], map: "unique_class_group")
+}
+
+model InterviewPage {
+  id           Int      @id @default(autoincrement())
+  student_id   Int
+  group_id     Int
+  class        Int
+  question1    Int
+  question2    Int
+  question3    Int
+  question4    Int
+  candidate_id Int
+  checked      Boolean? @default(false)
+
+  @@unique([student_id, candidate_id], map: "unique_student_candidate")
+  @@index([candidate_id], map: "candidate_id")
+  @@index([student_id], map: "student_id")
+}
+
+model InterviewPopup {
+  candidate_id Int
+  group_id     Int
+  class        Int
+  question1    Int
+  question2    Int
+  question3    Int
+  question4    Int
+
+  @@id([candidate_id, group_id, class])
+}
+
+model Interview_Status {
+  student_id Int    @id
+  finished   Int    @default(0) @db.TinyInt
+  group_id   String @db.VarChar(45)
+  class      Int
+}
+
+model Interview_vids {
+  id          Int         @id @default(autoincrement())
+  title       String      @db.VarChar(255)
+  resume_id   Int
+  video_path  String      @db.VarChar(255)
+  uploaded_at DateTime?   @default(now()) @db.Timestamp(0)
+  Resume_pdfs Resume_pdfs @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_interview_vids_resume")
+
+  @@index([resume_id], map: "fk_interview_vids_resume")
+}
+
+model Job_Assignment {
+  group            Int
+  class            Int
+  job              String?           @db.VarChar(45)
+  job_descriptions job_descriptions? @relation(fields: [job, class], references: [title, class_id], onDelete: Cascade, map: "job_fk")
+
+  @@id([group, class])
+  @@index([job, class], map: "job_class_idx")
+  @@index([class, job], map: "job_fk_idx")
+  @@index([job], map: "job_idx")
+}
+
+model MakeOfferPage {
+  id                 Int        @id @default(autoincrement())
+  selected_candidate Int
+  timespent          Int
+  group_id           Int
+  class              Int
+  Candidates         Candidates @relation(fields: [selected_candidate], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "MakeOfferPage_ibfk_1")
+
+  @@index([group_id], map: "group_id")
+  @@index([selected_candidate], map: "selected_candidate")
+}
+
+model Moderator {
+  id               Int                @id @default(autoincrement())
+  admin_email      String             @db.VarChar(45)
+  crn              Int                @unique(map: "crn_UNIQUE")
+  GroupsInfo       GroupsInfo[]
+  Resume_pdfs      Resume_pdfs[]
+  job_descriptions job_descriptions[]
+}
+
+model Notes {
+  id         Int       @id @default(autoincrement())
+  user_email String    @db.VarChar(255)
+  content    String    @db.Text
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  Users      Users     @relation(fields: [user_email], references: [email], onDelete: Cascade, onUpdate: NoAction, map: "notes_ibfk_1")
+
+  @@index([user_email], map: "user_email")
+}
+
+model Offer_Status {
+  student_id Int    @id
+  clicked    Int    @default(0) @db.TinyInt
+  group_id   String @db.VarChar(45)
+  class      Int
+}
+
+model Offers {
+  class_id     Int
+  group_id     Int
+  candidate_id Int
+  status       Offers_status @default(pending)
+  id           Int           @id @default(autoincrement())
+
+  @@unique([class_id, group_id], map: "uniq_offer_per_group")
+}
+
+model Progress {
+  crn      Int
+  group_id Int
+  step     Progress_step?
+  email    String         @id @unique(map: "email_UNIQUE") @db.VarChar(45)
+}
+
+model Res2_Status {
+  student_id Int @id
+  finished   Int @default(0) @db.TinyInt
+  group_id   Int
+  class      Int
+}
+
+model Resume {
+  student_id    Int
+  group_id      Int
+  class         Int
+  timespent     Int
+  resume_number Int
+  vote          Resume_vote
+  checked       Boolean     @default(false)
+  id            Int         @id @default(autoincrement())
+  Users         Users       @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Resume_ibfk_1")
+
+  @@unique([student_id, group_id, class, resume_number], map: "uniq_resume_vote")
+  @@index([student_id], map: "student_id")
+  @@index([group_id, class, resume_number], map: "group_resume")
+}
+
+model Resume_pdfs {
+  file_path      String           @db.VarChar(255)
+  uploaded_at    DateTime?        @default(now()) @db.Timestamp(0)
+  title          String           @db.VarChar(255)
+  id             Int              @id @default(autoincrement())
+  class_id       Int
+  extracted_text String?          @db.MediumText
+  Candidates     Candidates?
+  Interview_vids Interview_vids[]
+  Moderator      Moderator        @relation(fields: [class_id], references: [crn], onDelete: Cascade, onUpdate: NoAction, map: "resume_pdfs_class_fk")
+
+  @@unique([title, class_id], map: "title_class_unique")
+  @@index([class_id], map: "resume_pdfs_class_fk_idx")
+}
+
+model Resumepage {
+  id         Int              @id @default(autoincrement())
+  visited    DateTime?        @default(now()) @db.DateTime(0)
+  student_id Int
+  timespent  Int
+  vote       Resumepage_vote? @default(unanswered)
+  Users      Users            @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Resumepage_ibfk_1")
+
+  @@index([student_id], map: "student_id")
+}
+
+model Resumepage2 {
+  id        Int @id @default(autoincrement())
+  vote1     Int
+  vote2     Int
+  vote3     Int
+  vote4     Int
+  timespent Int
+  group_id  Int
+  class     Int
+
+  @@index([group_id], map: "group_id")
+}
+
+model Step_Completion {
+  student_id   Int
+  class        Int
+  group_id     Int
+  step         Step_Completion_step
+  completed_at DateTime             @default(now()) @db.Timestamp(0)
+  Users        Users                @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Step_Completion_ibfk_1")
+
+  @@id([student_id, class, group_id, step])
+  @@index([class, group_id, step], map: "barrier_lookup")
+}
+
+model Users {
+  id                 Int                  @id @default(autoincrement())
+  f_name             String?              @db.VarChar(50)
+  l_name             String?              @db.VarChar(50)
+  email              String               @unique(map: "email") @db.VarChar(100)
+  affiliation        Users_affiliation
+  created_at         DateTime?            @default(now()) @db.Timestamp(0)
+  group_id           Int?
+  class              Int?
+  current_page       Users_current_page?
+  seen               Int                  @default(0) @db.TinyInt
+  present_at         DateTime?            @db.Timestamp(0)
+  GroupConfirmations GroupConfirmations[]
+  Notes              Notes[]
+  Resume             Resume[]
+  Resumepage         Resumepage[]
+  Step_Completion    Step_Completion[]
+}
+
+model WaitingFacts {
+  class_id Int     @id
+  one      String? @db.Text
+  two      String? @db.Text
+  three    String? @db.Text
+}
+
+model job_descriptions {
+  id             Int              @id @default(autoincrement())
+  title          String           @db.VarChar(255)
+  file_path      String           @db.VarChar(255)
+  uploaded_at    DateTime?        @default(now()) @db.Timestamp(0)
+  class_id       Int
+  extracted_text String?          @db.MediumText
+  Job_Assignment Job_Assignment[]
+  Moderator      Moderator        @relation(fields: [class_id], references: [crn], onDelete: Cascade, onUpdate: NoAction, map: "job_descriptions_class_fk")
+
+  @@unique([title, class_id], map: "title_class_unique")
+  @@index([class_id], map: "job_descriptions_class_fk_idx")
+}
+
+model schema_migrations {
+  version String @id @db.VarChar(128)
+}
+
+model sessions {
+  session_id String  @id @db.VarChar(128)
+  expires    Int     @db.UnsignedInt
+  data       String? @db.MediumText
+}
+
+enum Progress_step {
+  none
+  job_description
+  res_1
+  res_2
+  interview
+  offer
+  employer
+}
+
+enum Offers_status {
+  pending
+  accepted
+  rejected
+}
+
+enum Step_Completion_step {
+  none
+  job_description
+  res_1
+  res_2
+  interview
+  offer
+  employer
+}
+
+enum Resumepage_vote {
+  yes
+  no
+  unanswered
+}
+
+enum Users_affiliation {
+  student
+  admin
+  none
+}
+
+enum Resume_vote {
+  yes
+  no
+  unanswered
+}
+
+enum Users_current_page {
+  dashboard
+  resumepage
+  resumepage2
+  jobdes
+  interviewpage
+  makeofferpage
+}

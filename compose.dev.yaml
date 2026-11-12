@@ -1,0 +1,87 @@
+# Local dev only: `npm run all`. MySQL and Keycloak live in .local/compose.yaml.
+# The root compose.yaml is production (Khoury Coolify); leave it alone.
+name: nuhire-local
+
+services:
+  db:
+    extends:
+      file: .local/compose.yaml
+      service: db
+
+  keycloak:
+    extends:
+      file: .local/compose.yaml
+      service: keycloak
+    # Localhost only, so nobody else on the network can reach a dev stack.
+    ports:
+      - '127.0.0.1:5001:5001'
+
+  api:
+    build:
+      context: ./api
+      dockerfile: dockerfile.dev
+    init: true
+    # So localhost:8080 is Keycloak for the API as well as the browser.
+    network_mode: 'service:keycloak'
+    env_file:
+      - ./api/.env.example
+      - path: ./api/.env
+        required: false
+    environment:
+      DATABASE_URL: mysql://root:nuhire@db:3306/nuhire
+    # The API runs these at start (see api/dockerfile.dev). Mounted rather than
+    # built in, so a new migration needs only a restart of this container.
+    volumes:
+      - ./database-files/migrations:/database-files/migrations:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:5001/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./api/src
+          target: /apicode/src
+        - action: rebuild
+          path: ./api/package-lock.json
+        # A new schema.prisma from `npm run db:pull` needs a regenerated client.
+        - action: rebuild
+          path: ./api/prisma
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    init: true
+    env_file:
+      - ./frontend/.env.example
+      - path: ./frontend/.env.local
+        required: false
+    ports:
+      - '127.0.0.1:3000:3000'
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./frontend/package-lock.json
+
+volumes:
+  db_data:

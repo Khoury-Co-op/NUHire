@@ -4,38 +4,38 @@
   "description": "",
   "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "pretest": "prisma generate",
+    "test": "vitest run",
+    "build": "prisma generate && tsc",
+    "db:migrate": "dbmate --migrations-dir ../database-files/migrations --no-dump-schema --wait migrate",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "start": "npm run db:migrate && node dist/server.js",
     "dev": "ts-node src/server.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@exlinc/keycloak-passport": "^1.0.2",
-    "@keycloak/keycloak-admin-client": "^26.3.3",
+    "@prisma/adapter-mariadb": "7.10.1",
+    "@prisma/client": "7.10.1",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
+    "dbmate": "^2.36.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.18.2",
-    "fs": "^0.0.1-security",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.2",
+    "multer": "^2.0.2",
     "mysql2": "^3.12.0",
-    "node-fetch": "^2.7.0",
     "passport": "^0.7.0",
-    "passport-google-oauth2": "^0.2.0",
-    "passport-google-oauth20": "^2.0.0",
     "passport-keycloak-oauth2-oidc": "^1.0.5",
-    "passport-oauth2": "^1.8.0",
-    "passport-openidconnect": "^0.1.2",
-    "socket": "^0.14.103",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
     "socket.io": "^4.8.1",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "unpdf": "^1.9.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
@@ -44,7 +44,7 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^22.13.10",
     "@types/passport": "^1.0.17",
-    "@types/passport-local": "^1.0.38",
-    "@types/socket.io": "^3.0.2"
+    "prisma": "7.10.1",
+    "vitest": "^5.0.2"
   }
 }

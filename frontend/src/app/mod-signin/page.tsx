@@ -1,29 +1,29 @@
 'use client';
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import Slideshow from "../components/slideshow";
-import Link from "next/link";
-import Popup from "../components/popup";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Slideshow from '../components/slideshow';
+import Link from 'next/link';
+import Popup from '../components/popup';
+import { API_BASE_URL } from '../../lib/api';
 
 export default function ModeratorSignIn() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [popup, setPopup] = useState<{ headline: string; message: string } | null>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await fetch(`${API_BASE_URL}/auth/moderator-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // Add this to receive cookies
-        body: JSON.stringify({ username, password }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // Add this to receive cookies
+      body: JSON.stringify({ username, password }),
     });
     if (res.ok) {
-        router.push("/mod-dashboard"); 
+      router.push('/mod-dashboard');
     } else {
-        setPopup({ headline: "Login Failed", message: "Invalid username or password." });
+      setPopup({ headline: 'Login Failed', message: 'Invalid username or password.' });
     }
   };
 
@@ -31,10 +31,10 @@ export default function ModeratorSignIn() {
     <div className="flex flex-col min-h-screen bg-sand font-rubik">
       <div className="fixed inset-0 z-0">
         <Slideshow />
-      </div>       
-      <div className="fixed inset-0 bg-sand/80 z-5" />
+      </div>
+      <div className="fixed inset-0 bg-sand/80 z-[5]" />
       <nav className="navbar w-full relative">
-      {/* Top bar */}
+        {/* Top bar */}
         <div className="bg-northeasternBlack text-northeasternWhite justify-center flex px-6 py-4 font-rubik border-b-4 border-northeasternRed w-full">
           <Link
             href="/advisor-dashboard"
@@ -44,7 +44,7 @@ export default function ModeratorSignIn() {
           </Link>
         </div>
       </nav>
-    
+
       <div className="flex-1 flex flex-col justify-center items-center z-10 relative">
         <form
           onSubmit={handleSubmit}
@@ -55,7 +55,7 @@ export default function ModeratorSignIn() {
             type="text"
             placeholder="Admin Username"
             value={username}
-            onChange={e => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value)}
             className="border p-2 rounded"
             required
           />
@@ -63,7 +63,7 @@ export default function ModeratorSignIn() {
             type="password"
             placeholder="Password"
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             className="border p-2 rounded"
             required
           />
@@ -75,13 +75,9 @@ export default function ModeratorSignIn() {
           </button>
         </form>
       </div>
-        {popup && (
-          <Popup
-            headline={popup.headline}
-            message={popup.message}
-            onDismiss={() => setPopup(null)}
-          />
-        )}
+      {popup && (
+        <Popup headline={popup.headline} message={popup.message} onDismiss={() => setPopup(null)} />
+      )}
     </div>
   );
 }

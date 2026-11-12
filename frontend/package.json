@@ -1,66 +1,52 @@
 {
-  "name": "pandployer",
+  "name": "nuhire-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --no-lint",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
-    "axios": "^1.8.4",
-    "cookie": "^1.0.2",
-    "cors": "^2.8.5",
-    "crypto": "^1.0.1",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "express-session": "^1.18.1",
-    "googleapis": "^144.0.0",
-    "mysql2": "^3.13.0",
-    "next": "^15.3.0",
+    "axios": "^1.20.0",
+    "next": "^15.5.28",
     "pdf-lib": "^1.17.1",
-    "popup": "^0.0.3",
-    "python": "^0.0.4",
     "react": "^19.0.0",
     "react-collapsed": "^4.2.0",
     "react-dom": "^19.0.0",
     "react-draggable": "^4.4.6",
     "react-icons": "^5.5.0",
     "react-pdf": "^9.2.1",
-    "react-router-dom": "^7.1.5",
     "react-slick": "^0.30.3",
     "react-youtube": "^10.1.0",
     "slick-carousel": "^1.8.1",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "vite": "^6.1.0"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@types/cookie": "^1.0.0",
-    "@types/express": "^5.0.0",
-    "@types/node": "^20.17.24",
+    "@types/node": "^22.13.10",
     "@types/react": "19.0.8",
     "@types/react-dom": "^19",
     "@types/react-slick": "^0.23.13",
-    "@types/socket.io": "^3.0.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^5.0.5"
   },
-  "description": "Febuary 5th 2024:\r page.tsx edited -\r   - Added in a function to create buttons which will be used later in order to develop a feature where homepage buttons are hidden until that page is reached in the process.\r   - Embedded ATS youtube video into the page.\r   - Linked the buttons to their respective pages.",
+  "description": "NUHire frontend. Next.js App Router.",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sagashrimproll/Panployer.git"
+    "url": "git+https://github.com/Khoury-Co-op/NUHire.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/sagashrimproll/Panployer/issues"
+    "url": "https://github.com/Khoury-Co-op/NUHire/issues"
   },
-  "homepage": "https://github.com/sagashrimproll/Panployer#readme"
+  "homepage": "https://github.com/Khoury-Co-op/NUHire#readme"
 }

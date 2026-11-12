@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. `.env.example` is documentation and stays tracked; see the root
+# .gitignore for why the negation is required.
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -42,3 +44,6 @@ next-env.d.ts
 
 # certs
 /certs
+
+# Prisma client, generated from prisma/schema.prisma by `npm run build`
+/src/generated/

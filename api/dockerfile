@@ -1,23 +1,54 @@
-FROM node:18-alpine
+# Build from the repo root, not from api/:
+#
+#   docker build -f api/dockerfile .
+#
+# `npm start` runs the database migrations before the API starts, and those live
+# in database-files/migrations, outside api/. A build whose context is api/
+# cannot copy them, and the API then refuses to start. What the build may read
+# is limited to api/ and the migrations by api/dockerfile.dockerignore.
+
+# node:18 went EOL in April 2025 and package.json `engines` already says >=22,
+# so the image was running the API on a runtime nothing else in the repo tests
+# against. 22 matches .nvmrc and the engines field.
+FROM node:22-alpine
 
 ENV LOG_LEVEL=DEBUG
 
 WORKDIR /apicode
 
-# Copy package files and install dependencies
-COPY package*.json tsconfig.json ./
-RUN npm install
+# `package*.json` deliberately pulls in package-lock.json as well: `npm ci`
+# fails loudly if the lock is missing or out of sync, which is the point.
+COPY api/package*.json api/tsconfig.json ./
+
+# `npm install` re-resolved every semver range at build time, so the image could
+# ship dependency versions that are in no lockfile and that `npm audit` never
+# saw. `npm ci` installs exactly the locked tree.
+RUN npm ci
 
 # Copy source code
-COPY src/ ./src/
+COPY api/src/ ./src/
 
-COPY uploads/ ./uploads/
+# `npm run build` generates the Prisma client from the schema before tsc.
+COPY api/prisma7.config.ts ./
+COPY api/prisma/ ./prisma/
+
+COPY api/uploads/ ./uploads/
+
+# Where `npm run db:migrate` looks for them: ../database-files/migrations,
+# relative to this WORKDIR.
+COPY database-files/migrations/ /database-files/migrations/
 
 # Compile TypeScript
 RUN npm run build
 
+# tsc, its @types and the prisma CLI are build-only. Dropping them after the
+# build keeps the devDependency tree out of the running image. dbmate is a
+# regular dependency, so it stays: `npm start` needs it. So do @prisma/client
+# and the adapter, which the generated client in dist/ loads at runtime.
+RUN npm prune --omit=dev
+
 # Expose backend port
 EXPOSE 5001
 
-# Start the application
+# Runs the migrations, then the API (see the `start` script in package.json).
 CMD ["npm", "start"]

@@ -1,9 +1,15 @@
 import { Response } from 'express';
-import { AuthRequest, User } from '../models/types';
+import { AuthRequest } from '../models/AuthRequest';
+import { isAdmin } from '../models/User';
 import { Pool, RowDataPacket } from 'mysql2';
+import { Server as SocketIOServer } from 'socket.io';
+import { emitToClassModerators, markPresent } from '../config/socket';
 
 export class UserController {
-  constructor(private db: Pool, private io: any) {}
+  constructor(
+    private db: Pool,
+    private io: SocketIOServer
+  ) {}
 
   getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -21,143 +27,104 @@ export class UserController {
     }
   };
 
-  getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+  // Completes signup for the logged-in user. The row already exists by the
+  // time this runs: the Keycloak callback inserts it with affiliation 'none',
+  // and the instructor's CSV import creates students ahead of time. So this
+  // only fills in names and, for emails listed in Moderator, promotes to admin.
+  //
+  // The email comes from the session, and the requested affiliation is only
+  // granted once it checks out: admin needs a Moderator row, student a roster.
+  createUser = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params;
+      const { First_name, Last_name, Affiliation } = req.body;
+      const me = req.user!;
 
-      this.db.query('SELECT * FROM Users WHERE id = ?', [id], (err, results) => {
-        if (err) {
-          console.error('Error fetching user:', err);
-          res.status(500).json({ error: err.message });
-          return;
-        }
-
-        const users = results as RowDataPacket[] as User[];
-        
-        if (users.length === 0) {
-          res.status(404).json({ message: 'User not found' });
-          return;
-        }
-
-        res.json(users[0]);
-      });
-    } catch (error) {
-      console.error('Unexpected error in getUserById:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  };
-
-createUser = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { First_name, Last_name, Email, Affiliation } = req.body;
-
-    console.log('=== POST /users endpoint hit ===');
-    console.log('Request body:', { First_name, Last_name, Email, Affiliation });
-
-    if (!First_name || !Last_name || !Email || !Affiliation) {
-      console.log('❌ Validation failed: Missing required fields');
-      res.status(400).json({ message: 'First name, last name, email, and affiliation are required' });
-      return;
-    }
-
-    console.log('✅ Validation passed, checking if user exists in database');
-
-    this.db.query('SELECT * FROM Users WHERE email = ?', [Email], (err, results) => {
-      if (err) {
-        console.error('❌ Database error during user lookup:', err);
-        res.status(500).json({ error: err.message });
+      if (!First_name || !Last_name || !Affiliation) {
+        res.status(400).json({ message: 'First name, last name, and affiliation are required' });
         return;
       }
 
-      const users = results as RowDataPacket[] as User[];
-      console.log(`Database query result: Found ${users.length} users with email ${Email}`);
-
-      if (users.length > 0) {
-        console.log('User already exists, updating information:', users[0]);
-        
-        // Update existing user with new information
+      const finish = (affiliation: 'student' | 'admin') => {
         this.db.query(
           'UPDATE Users SET f_name = ?, l_name = ?, affiliation = ? WHERE email = ?',
-          [First_name, Last_name, Affiliation, Email],
-          (updateErr, updateResult) => {
+          [First_name, Last_name, affiliation, me.email],
+          (updateErr) => {
             if (updateErr) {
-              console.error('❌ Failed to update user record:', updateErr);
-              res.status(500).json({ error: updateErr.message });
+              console.error('Failed to update user record:', updateErr);
+              res.status(500).json({ error: 'Failed to update user' });
               return;
             }
-            
-            console.log('✅ User record updated successfully');
-            this.io.emit('userAdded');
-            console.log('Emitted userUpdated event via WebSocket');
+
+            // Only the advisor's Manage Groups view cares, and only for the
+            // class this student is in.
+            if (me.class) {
+              emitToClassModerators(this.io, this.db, me.class, 'userAdded');
+            }
+
             res.status(200).json({
               message: 'User information updated successfully',
               action: 'updated',
               f_name: First_name,
               l_name: Last_name,
-              email: Email,
-              affiliation: Affiliation
+              email: me.email,
+              affiliation,
             });
           }
         );
+      };
+
+      if (Affiliation === 'admin') {
+        this.db.query(
+          'SELECT crn FROM Moderator WHERE admin_email = ? LIMIT 1',
+          [me.email],
+          (err, results) => {
+            if (err) {
+              console.error('Database error during moderator lookup:', err);
+              res.status(500).json({ error: 'Failed to verify instructor status' });
+              return;
+            }
+            if ((results as RowDataPacket[]).length === 0) {
+              res.status(403).json({ message: 'Please use an instructor email to sign up.' });
+              return;
+            }
+            finish('admin');
+          }
+        );
         return;
-      } else {
-        console.log('User does not exist, creating new user');
+      }
 
-        let sql: string;
-        let params: any[];
-
-        if (Affiliation === 'admin') {
-          console.log('Creating new admin user');
-          sql = 'INSERT INTO Users (f_name, l_name, email, affiliation) VALUES (?, ?, ?, ?)';
-          params = [First_name, Last_name, Email, Affiliation];
-        } else if (Affiliation === 'student') {
-          console.log('❌ Student not found in database - they should be imported via CSV first');
+      if (Affiliation === 'student') {
+        // Being on a roster is what makes someone a student, and the CSV import
+        // is the only thing that puts a row on one. It sets both `affiliation`
+        // and `class`, so either is proof. `class` is checked as well because
+        // rows imported before that was true are still sitting at 'none' with a
+        // class assigned, and rejecting them would strand a real student on the
+        // signup form. A row with neither was auto-created at login and belongs
+        // to nobody's class yet.
+        if (me.affiliation !== 'student' && me.class == null) {
           res.status(404).json({
             message: 'Student not found. Please contact your instructor to be added to the class.',
-            action: 'student_not_found'
+            action: 'student_not_found',
           });
-          return;
-        } else {
-          console.log('❌ Invalid affiliation:', Affiliation);
-          res.status(400).json({ message: 'Invalid affiliation' });
           return;
         }
-
-        console.log('Executing user creation query...');
-        this.db.query(sql, params, (err, result) => {
-          if (err) {
-            console.error('❌ Failed to create user:', err);
-            res.status(500).json({ error: err.message });
-            return;
-          }
-
-          const insertResult = result as RowDataPacket;
-          console.log('✅ User created successfully');
-          res.status(201).json({
-            id: insertResult.insertId,
-            First_name,
-            Last_name,
-            Email,
-            Affiliation,
-            action: 'created'
-          });
-          this.io.emit('userAdded');
-          console.log('Emitted userAdded event via WebSocket');
-        });
+        finish('student');
+        return;
       }
-    });
-  } catch (error) {
-    console.error('Unexpected error in createUser:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
+
+      res.status(400).json({ message: 'Invalid affiliation' });
+    } catch (error) {
+      console.error('Unexpected error in createUser:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
 
   getStudents = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { class: classId } = req.query;
 
       let query = "SELECT f_name, l_name, email, group_id FROM Users WHERE affiliation = 'student'";
-      let params: any[] = [];
+      const params: any[] = [];
 
       if (classId) {
         query += ' AND class = ?';
@@ -170,7 +137,6 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
           res.status(500).json({ error: err.message });
           return;
         }
-        console.log(results);
         res.json(results);
       });
     } catch (error) {
@@ -188,10 +154,21 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
         return;
       }
 
+      // Every student page calls this on mount, so it doubles as attendance
+      // for a student whose socket arrived with no session and was never
+      // stamped. Taken from the session, never from the body's email, and
+      // skipped once stamped, so it is not a write per page load.
+      const me = req.user;
+      if (me?.affiliation === 'student' && !me.present_at) {
+        await markPresent(this.io, this.db, me).catch((err) => {
+          console.error(`Could not mark ${me.email} present:`, err);
+        });
+      }
+
       this.db.query(
         'UPDATE Users SET `current_page` = ? WHERE email = ?',
         [page, user_email],
-        (err, result) => {
+        (err) => {
           if (err) {
             console.error('Database error:', err);
             res.status(500).json({ error: 'Failed to update current page.' });
@@ -215,7 +192,7 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
 
       const { email, class: classId } = req.body;
 
-      if (req.user?.email !== email && req.user?.affiliation !== 'admin') {
+      if (req.user?.email !== email && !isAdmin(req.user)) {
         res.status(403).json({ message: 'Forbidden: You can only update your own profile' });
         return;
       }
@@ -225,21 +202,25 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
         return;
       }
 
-      this.db.query('UPDATE Users SET `class` = ? WHERE email = ?', [classId, email], (err, result) => {
-        if (err) {
-          console.error('Database error:', err);
-          res.status(500).json({ error: 'Failed to update class.' });
-          return;
-        }
+      this.db.query(
+        'UPDATE Users SET `class` = ? WHERE email = ?',
+        [classId, email],
+        (err, result) => {
+          if (err) {
+            console.error('Database error:', err);
+            res.status(500).json({ error: 'Failed to update class.' });
+            return;
+          }
 
-        const updateResult = result as RowDataPacket;
-        if (updateResult.affectedRows === 0) {
-          res.status(404).json({ error: 'User not found.' });
-          return;
-        }
+          const updateResult = result as RowDataPacket;
+          if (updateResult.affectedRows === 0) {
+            res.status(404).json({ error: 'User not found.' });
+            return;
+          }
 
-        res.json({ message: 'Class updated successfully!' });
-      });
+          res.json({ message: 'Class updated successfully!' });
+        }
+      );
     } catch (error) {
       console.error('Unexpected error in updateUserClass:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -247,7 +228,6 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
   };
 
   updateUserSeen = async (req: AuthRequest, res: Response): Promise<void> => {
-    console.log("=== POST /user/update-seen endpoint hit ===");
     try {
       if (!req.isAuthenticated || !req.isAuthenticated()) {
         res.status(401).json({ message: 'Unauthorized' });
@@ -255,19 +235,17 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
       }
 
       const { email } = req.body;
-      console.log("Request body:", { email });
 
       if (!email) {
         res.status(400).json({ error: 'Email is required.' });
         return;
       }
-      this.db.query('UPDATE Users SET `seen` = 1 WHERE email = ?', [email], (err, result) => {
+      this.db.query('UPDATE Users SET `seen` = 1 WHERE email = ?', [email], (err) => {
         if (err) {
           console.error('Database error:', err);
           res.status(500).json({ error: 'Failed to update seen.' });
           return;
         }
-        console.log("User 'seen' field updated successfully for email:", email);
         res.json({ message: 'Seen updated successfully!' });
       });
     } catch (error) {
@@ -276,46 +254,44 @@ createUser = async (req: AuthRequest, res: Response): Promise<void> => {
     }
   };
 
+  // Answers only for the caller.
   check = async (req: AuthRequest, res: Response): Promise<void> => {
-  console.log('=== CHECK ENDPOINT DEBUG ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session:', req.session);
-  console.log('Is Authenticated:', req.isAuthenticated ? req.isAuthenticated() : 'N/A');
-  console.log('Cookies:', req.headers.cookie);
-  console.log('User:', req.user);
-  console.log('===========================');
-  
     try {
       const { email } = req.params;
-      console.log("Check endpoint hit with email:", email);
 
       if (!email) {
         res.status(400).json({ error: 'Email is required.' });
         return;
       }
 
-      this.db.query('SELECT group_id, class AS class_id FROM Users WHERE email = ?', [email], (err, result: any[]) => {
-        if (err) {
-          console.error('Database error:', err);
-          res.status(500).json({ error: 'Failed to check if email is within users.' });
-          return;
+      if (email !== req.user?.email) {
+        res.status(403).json({ error: 'You can only check your own registration.' });
+        return;
+      }
+
+      this.db.query(
+        'SELECT group_id, class AS class_id FROM Users WHERE email = ?',
+        [email],
+        (err, results) => {
+          if (err) {
+            console.error('Database error:', err);
+            res.status(500).json({ error: 'Failed to check if email is within users.' });
+            return;
+          }
+
+          const rows = results as RowDataPacket[];
+          if (rows.length === 0) {
+            res.json({ exists: false });
+            return;
+          }
+
+          res.json({
+            exists: true,
+            group_id: rows[0].group_id,
+            class_id: rows[0].class_id,
+          });
         }
-        
-        console.log("Check query result:", result);
-        
-        // Check if user exists
-        if (!result || result.length === 0) {
-          res.json({ exists: false });
-          return;
-        }
-        
-        // User exists, return their data with exists flag
-        res.json({ 
-          exists: true,
-          group_id: result[0].group_id,
-          class_id: result[0].class_id
-        });
-      });
+      );
     } catch (error) {
       console.error('Unexpected error in check:', error);
       res.status(500).json({ error: 'Internal server error' });

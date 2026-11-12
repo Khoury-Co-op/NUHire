@@ -30,8 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. The example files are documentation, not secrets, and every setup
+# path in ONBOARDING.md copies them, so they must stay tracked. Without the
+# negations below `.env*` swallowed both and a clean clone could not start.
 .env*
+!.env.example
+!**/.env.example
 
 # vercel
 .vercel
@@ -52,3 +56,10 @@ secrets/
 
 # API keys and sensitive config
 config/secrets/
+api/dist/
+
+# File-sync conflict copies. iCloud and Dropbox resolve a conflict by writing
+# "app 2.js" next to "app.js"; seven of those inside .next/types were enough to
+# make `npm run typecheck` fail on errors that had nothing to do with the source.
+# The leading space is what makes this safe: it will not match `sample1.js`.
+* [0-9].*

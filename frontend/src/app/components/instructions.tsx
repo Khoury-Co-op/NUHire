@@ -5,15 +5,15 @@ interface InstructionsProps {
   onDismiss: () => void;
   title?: string;
   buttonText?: string;
-  progress: number; 
+  progress: number;
 }
 
 const steps = [
-  "Job Description",
-  "Resume Review",
-  "Resume Review Pt.2",
-  "Interview Review",
-  "Make Offer"
+  'Job Description',
+  'Resume Review',
+  'Resume Review Pt.2',
+  'Interview Review',
+  'Make Offer',
 ];
 
 const ProgressBar: FC<{ progress: number }> = ({ progress }) => {
@@ -30,13 +30,13 @@ const ProgressBar: FC<{ progress: number }> = ({ progress }) => {
           <div className="w-full bg-gray-200 rounded-full h-10 relative overflow-visible flex">
             {steps.map((step, idx) => {
               const filled = idx < progress;
-              const leftRadius = idx === 0 ? "rounded-l-full" : "";
-              const rightRadius = idx === steps.length - 1 ? "rounded-r-full" : "";
+              const leftRadius = idx === 0 ? 'rounded-l-full' : '';
+              const rightRadius = idx === steps.length - 1 ? 'rounded-r-full' : '';
               return (
                 <div
                   key={step}
                   className={`flex-1 h-10 flex items-center justify-center font-bold text-xs transition-all duration-300
-                    ${!filled ? "bg-northeasternWhite text-northeasternRed" : "bg-northeasternRed text-northeasternWhite"}
+                    ${!filled ? 'bg-northeasternWhite text-northeasternRed' : 'bg-northeasternRed text-northeasternWhite'}
                     ${leftRadius} ${rightRadius} relative`}
                 >
                   {step}
@@ -44,18 +44,20 @@ const ProgressBar: FC<{ progress: number }> = ({ progress }) => {
               );
             })}
             <div className="absolute inset-0 h-10 w-full pointer-events-none">
-              {[...Array(totalNotches)].map((_, idx) => (
-                (idx !== 0 && idx !== totalNotches - 1) && (
-                  <div
-                    key={idx}
-                    className="absolute top-0 h-10 w-1 bg-northeasternRed"
-                    style={{
-                      left: `${(idx / (totalNotches - 1)) * 100}%`,
-                      transform: 'translateX(-50%)'
-                    }}
-                  />
-                )
-              ))}
+              {[...Array(totalNotches)].map(
+                (_, idx) =>
+                  idx !== 0 &&
+                  idx !== totalNotches - 1 && (
+                    <div
+                      key={idx}
+                      className="absolute top-0 h-10 w-1 bg-northeasternRed"
+                      style={{
+                        left: `${(idx / (totalNotches - 1)) * 100}%`,
+                        transform: 'translateX(-50%)',
+                      }}
+                    />
+                  )
+              )}
             </div>
           </div>
         </div>
@@ -70,9 +72,9 @@ const ProgressBar: FC<{ progress: number }> = ({ progress }) => {
 const Instructions: FC<InstructionsProps> = ({
   instructions,
   onDismiss,
-  title = "Instructions",
-  buttonText = "Dismiss & Start",
-  progress
+  title = 'Instructions',
+  buttonText = 'Dismiss & Start',
+  progress,
 }) => {
   return (
     <div className="fixed top-0 left-0 w-full h-full bg-white bg-opacity-95 z-50 flex flex-col items-center justify-center">

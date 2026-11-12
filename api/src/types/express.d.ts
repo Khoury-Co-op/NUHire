@@ -1,4 +1,4 @@
-import { User as AppUser } from '../models/types';
+import { User as AppUser } from '../models/User';
 
 declare global {
   namespace Express {

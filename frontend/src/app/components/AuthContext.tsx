@@ -1,18 +1,8 @@
 // frontend/src/app/components/AuthContext.tsx
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // "https://nuhire-api-cz6c.onrender.com";
-
-interface User {
-  id: number;
-  f_name: string;
-  l_name: string;
-  email: string;
-  affiliation: string;
-  group_id: number;
-  class: number;
-}
+import type { User } from '../../types';
+import { API_BASE_URL } from '../../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -28,30 +18,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
-      console.log("Attempting to fetch user data from API...");
-      const response = await fetch(`${API_BASE_URL}/auth/user`, { 
-        credentials: "include" 
+      const response = await fetch(`${API_BASE_URL}/auth/user`, {
+        credentials: 'include',
       });
-      
+
       if (response.ok) {
-        console.log("User data fetched successfully.");
         const userData = await response.json();
         setUser(userData);
-        console.log("User data:", userData);
       } else {
         setUser(null);
       }
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error('Error fetching user:', error);
       setUser(null);
     } finally {
-      console.log("loading complete.");
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log("Fetching user data...");
     fetchUser();
   }, []);
 

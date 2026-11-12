@@ -1,19 +1,18 @@
 'use client';
-import React from "react";
-import Image from "next/image";
-import Slideshow from "./components/slideshow";
+import Image from 'next/image';
+import Slideshow from './components/slideshow';
+import { API_BASE_URL } from '../lib/api';
 import './globals.css';
-import "slick-carousel/slick/slick.css";
-import "slick-carousel/slick/slick-theme.css";
+import 'slick-carousel/slick/slick.css';
+import 'slick-carousel/slick/slick-theme.css';
 
 export default function Home() {
   const handleKeycloakLogin = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL; // "https://nuhire-api-cz6c.onrender.com";
-    window.location.href = `${apiUrl}/auth/keycloak`;
+    window.location.href = `${API_BASE_URL}/auth/keycloak`;
   };
 
   const handleModeratorLogin = () => {
-    window.location.href = "/mod-signin";
+    window.location.href = '/mod-signin';
   };
 
   return (
@@ -22,12 +21,12 @@ export default function Home() {
       <Slideshow />
 
       {/* Semi-transparent overlay for better text readability */}
-      <div className="absolute inset-0 bg-sand/70 z-1" />
+      <div className="absolute inset-0 bg-sand/70 z-[1]" />
 
       {/* Navigation Bar */}
       <div className="w-full flex justify-end p-2 bg-navy shadow-md font-rubik text-2xl fixed top-0">
-        <button 
-          onClick={handleModeratorLogin} 
+        <button
+          onClick={handleModeratorLogin}
           className="m-2 px-2 py-2 bg-northeasternWhite text-black border-4 border-northeasternRed rounded-md text-lg transition-opacity hover:opacity-60 active:opacity-30"
         >
           Admin
@@ -40,27 +39,39 @@ export default function Home() {
           {/* Acronym with aligned words */}
           <div className="flex flex-col items-start p-8 rounded-2xl backdrop-blur-sm">
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">N</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                N
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">ortheastern</span>
             </div>
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">U</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                U
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">niversity's</span>
             </div>
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">H</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                H
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">iring</span>
             </div>
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">I</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                I
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">nterviewing</span>
             </div>
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">R</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                R
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">ecruiting</span>
             </div>
             <div className="flex items-end">
-              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">E</span>
+              <span className="text-7xl font-extrabold text-northeasternRed leading-none mr-0 font-mono align-bottom">
+                E
+              </span>
               <span className="text-3xl font-bold text-navy pb-0 align-bottom">xercise</span>
             </div>
           </div>
@@ -68,8 +79,8 @@ export default function Home() {
         <p className="text-2xl italic mt-8 text-center text-navy font-bold  px-6 py-3 rounded-lg backdrop-blur-sm">
           Step into the employer's shoes!
         </p>
-        <button 
-          onClick={handleKeycloakLogin} 
+        <button
+          onClick={handleKeycloakLogin}
           className="mt-6 px-6 py-4 bg-white text-black border-4 border-navy rounded-md text-lg transition-opacity hover:opacity-60 active:opacity-30"
         >
           Click Here to Get Started

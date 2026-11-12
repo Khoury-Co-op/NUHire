@@ -1,40 +1,47 @@
 {
-  "name": "pandployer",
+  "name": "nuhire",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "vite --host 0.0.0",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+  "description": "Hiring simulation used as an in-class activity for Khoury CS1210.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Khoury-Co-op/NUHire.git"
   },
-  "dependencies": {
-    "@exlinc/keycloak-passport": "^1.0.2",
-    "@keycloak/keycloak-admin-client": "^26.3.3",
-    "@react-pdf-viewer/core": "^3.12.0",
-    "@react-pdf-viewer/default-layout": "^3.12.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "express-session": "^1.18.1",
-    "mysql2": "^3.13.0",
-    "next": "^15.3.0",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "passport-keycloak-oauth2-oidc": "^1.0.5",
-    "popup": "^0.0.3",
-    "python": "^0.0.4",
-    "react-pdf": "^10.0.1",
-    "socket": "^0.14.103",
-    "socket.io": "^4.8.1"
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "install:all": "npm install && npm --prefix api install && npm --prefix frontend install",
+    "all": "docker compose -f compose.dev.yaml up --watch",
+    "down": "docker compose -f compose.dev.yaml down",
+    "reset": "docker compose -f compose.dev.yaml down -v",
+    "dev:services": "docker compose -f .local/compose.yaml up -d --wait",
+    "seed": "node .local/tests/seed/seed.mjs",
+    "seed:wipe": "node .local/tests/seed/wipe.mjs",
+    "seed:reset": "node .local/tests/seed/wipe.mjs --yes --keep-keycloak && node .local/tests/seed/seed.mjs",
+    "seed:check": "node .local/tests/seed/check.mjs",
+    "load": "npm run seed:reset && node .local/tests/load-tests/run.mjs",
+    "races": "npm --prefix api run build && node .local/tests/races/run.mjs",
+    "db:migrate": "npm --prefix api run db:migrate",
+    "db:pull": "npm --prefix api run db:pull",
+    "dev:api": "npm --prefix api run build && npm --prefix api start",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix api run build && npm --prefix frontend run build",
+    "typecheck": "cd api && npx prisma generate && npx tsc --noEmit && cd ../frontend && npx tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm --prefix frontend run lint"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.13.10",
-    "@types/passport": "^1.0.17",
-    "@types/passport-local": "^1.0.38",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
-    "@types/socket.io": "^3.0.2"
+    "@eslint/js": "^9.39.5",
+    "@next/eslint-plugin-next": "^15.5.26",
+    "cspell": "^8.19.4",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.5.0",
+    "mysql2": "^3.24.5",
+    "prettier": "^3.3.3",
+    "socket.io-client": "^4.8.1",
+    "typescript-eslint": "^8.71.0"
   }
 }

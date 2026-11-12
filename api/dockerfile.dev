@@ -1,0 +1,19 @@
+# Local dev only; production builds from ./dockerfile.
+FROM node:22-alpine
+
+WORKDIR /apicode
+
+COPY package*.json tsconfig.json prisma7.config.ts ./
+RUN npm ci
+
+COPY prisma/ ./prisma/
+COPY src/ ./src/
+COPY uploads/ ./uploads/
+# Generates the Prisma client, then compiles, as in production.
+RUN npm run build
+
+EXPOSE 5001
+
+# Migrations first, as `npm start` does in production: if one fails, the API
+# does not start. compose.dev.yaml mounts them at /database-files/migrations.
+CMD ["sh", "-c", "npm run db:migrate && { npx tsc --watch --preserveWatchOutput & exec node --watch dist/server.js; }"]
