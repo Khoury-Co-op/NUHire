@@ -36,6 +36,54 @@ CREATE TABLE `Candidates` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `GroupConfirmations`
+--
+-- Server-side record of who has confirmed the group's resume selection in
+-- res-review-group. It used to live only in React state, so a refresh reset it
+-- to nothing and a student who had already confirmed could not confirm again.
+-- Added by migrations/004-group-confirmations.sql; keep the two in step.
+--
+
+DROP TABLE IF EXISTS `GroupConfirmations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `GroupConfirmations` (
+  `group_id` int NOT NULL,
+  `class` int NOT NULL,
+  `student_id` int NOT NULL,
+  `confirmed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`group_id`, `class`, `student_id`),
+  KEY `student_id` (`student_id`),
+  CONSTRAINT `GroupConfirmations_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `Users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Step_Completion`
+--
+-- Durable per-student step completion, so the group barrier survives an API
+-- restart. It used to live in `global.completedResReview`, a plain object in
+-- the process; a restart, a reconnect, or a student offline at the instant of
+-- release each stranded the whole group permanently. Added by
+-- migrations/005-step-completion.sql; keep the two in step.
+--
+
+DROP TABLE IF EXISTS `Step_Completion`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `Step_Completion` (
+  `student_id` int NOT NULL,
+  `class` int NOT NULL,
+  `group_id` int NOT NULL,
+  `step` enum('none','job_description','res_1','res_2','interview','offer','employer') NOT NULL,
+  `completed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`student_id`, `class`, `group_id`, `step`),
+  KEY `barrier_lookup` (`class`, `group_id`, `step`),
+  CONSTRAINT `Step_Completion_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `Users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `GroupsInfo`
 --
 
@@ -164,6 +212,7 @@ CREATE TABLE `job_descriptions` (
   `file_path` varchar(255) NOT NULL,
   `uploaded_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `class_id` int NOT NULL,
+  `extracted_text` mediumtext,
   PRIMARY KEY (`id`),
   UNIQUE KEY `title_class_unique` (`title`,`class_id`),
   KEY `job_descriptions_class_fk_idx` (`class_id`),
@@ -254,7 +303,12 @@ CREATE TABLE `Offers` (
   `candidate_id` int NOT NULL,
   `status` enum('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
   `id` int NOT NULL AUTO_INCREMENT,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  -- One offer per group per section. Without this, two members clicking submit
+  -- at the same moment inserted two pending rows and the professor's list showed
+  -- the group twice; accepting one left the other pending for the rest of class.
+  -- createOffer relies on this key to upsert. See migrations/002.
+  UNIQUE KEY `uniq_offer_per_group` (`class_id`, `group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -305,10 +359,27 @@ CREATE TABLE `Resume` (
   `timespent` int NOT NULL,
   `resume_number` int NOT NULL,
   `vote` enum('yes','no','unanswered') NOT NULL,
+  -- GROUP-level, not per student, despite the per-student row grain. `checked`
+  -- is "this group shortlisted this resume": the `check` socket handler updates
+  -- every row for (group_id, class, resume_number) with no student_id, so one
+  -- member ticking the box ticks it for the team, which is the point. The value
+  -- is therefore duplicated across the group's rows.
+  -- Read it as MAX(checked) GROUP BY resume_number. Taking it off a single row
+  -- is how a student who votes after the group shortlisted a resume — their new
+  -- row carries the DEFAULT 0 — unticks it for everyone. migrations/003 brings
+  -- existing rows back into line.
   `checked` tinyint(1) NOT NULL DEFAULT '0',
   `id` int NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
+  -- One row per student per resume. The vote writer uses ON DUPLICATE KEY
+  -- UPDATE, which silently did nothing without this: the only keys were the
+  -- auto-increment id and a non-unique index, so every submission appended a
+  -- row and the group's tally counted the same student repeatedly.
+  UNIQUE KEY `uniq_resume_vote` (`student_id`, `group_id`, `class`, `resume_number`),
   KEY `student_id` (`student_id`),
+  -- The vote INSERT and the `check` socket handler find a group's rows for one
+  -- resume by these columns. migrations/007.
+  KEY `group_resume` (`group_id`, `class`, `resume_number`),
   CONSTRAINT `Resume_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `Users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -326,6 +397,7 @@ CREATE TABLE `Resume_pdfs` (
   `title` varchar(255) NOT NULL,
   `id` int NOT NULL AUTO_INCREMENT,
   `class_id` int NOT NULL,
+  `extracted_text` mediumtext,
   PRIMARY KEY (`id`),
   UNIQUE KEY `title_class_unique` (`title`,`class_id`),
   KEY `resume_pdfs_class_fk_idx` (`class_id`),
@@ -391,6 +463,7 @@ CREATE TABLE `Users` (
   `class` int DEFAULT NULL,
   `current_page` enum('dashboard','resumepage','resumepage2','jobdes','interviewpage','makeofferpage') DEFAULT NULL,
   `seen` tinyint NOT NULL DEFAULT '0',
+  `present_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React from "react";
+import React from 'react';
 
 /**
  * Props:
@@ -36,7 +36,7 @@ export default function RatingSlider({ value, onChange }: RatingSliderProps) {
         value={value}
         onChange={handleChange}
         className="slider w-full h-3 accent-blue-500 cursor-pointer"
-        style={{ cursor: "pointer" }} 
+        style={{ cursor: 'pointer' }}
       />
 
       <p className="mt-2 text-sm">Selected Value: {value}</p>

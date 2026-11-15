@@ -1,0 +1,39 @@
+# There was no .dockerignore here at all, so every `docker build ./frontend`
+# (compose builds the frontend from this directory) uploaded ~984 MB and then
+# `COPY . .` baked it into the image.
+#
+# Measured 2026-09-20: context is now 17.5 MB in 102 files, nearly all of it
+# public/ images. If it climbs back over ~50 MB, something below stopped
+# matching and node_modules or .next is being shipped again.
+
+# 663 MB, and worse than just big: these are darwin-arm64 native binaries from a
+# developer's Mac being copied into a linux/amd64 image, where the sharp and
+# canvas bindings do not load. The Dockerfile runs its own install; the host
+# copy can only shadow it.
+node_modules
+
+# 304 MB of a build produced on the host. `npm run build` regenerates it, and a
+# stale .next copied in first has served old pages mid-class.
+.next
+out
+*.tsbuildinfo
+
+# SECRETS. .env.local holds the real API and Keycloak URLs and was being copied
+# into the image, where it also beats the runtime environment: Next.js loads
+# .env.local over the values compose passes in, so a baked file silently points
+# a production container at a developer's localhost.
+.env
+.env.*
+!.env.example
+
+# Not build input.
+.git
+.gitignore
+Dockerfile
+Dockerfile.*
+.dockerignore
+*.md
+.DS_Store
+*.log
+npm-debug.log*
+coverage

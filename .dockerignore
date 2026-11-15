@@ -1,1 +1,64 @@
-node_modules
+# Docker matches these patterns against the ROOT of the build context only
+# unless you write `**/`. The old single `node_modules` line therefore skipped
+# only the 9.6 MB root copy and still shipped frontend/node_modules (663 MB),
+# api/node_modules, .git (176 MB), frontend/.next (304 MB) and api/.env to the
+# daemon on every build.
+#
+# Measured 2026-09-20: context went from 1.2 GB to 19.2 MB in 188 files, and
+# 17 MB of that is frontend/public images. If this number climbs back into the
+# hundreds of MB, something below stopped matching.
+
+# Dependencies. Installed inside the image from the lockfile; host copies also
+# carry darwin-arm64 native binaries that are useless in a linux/amd64 image.
+**/node_modules
+
+# Build output. Rebuilt in the image; stale copies can shadow the fresh build.
+**/.next
+**/dist
+**/out
+**/build
+**/*.tsbuildinfo
+
+# 176 MB of history that no build step reads.
+.git
+.gitignore
+.github
+
+# SECRETS. api/.env and frontend/.env.local were both inside the context, which
+# means real Keycloak and database credentials were uploaded to the daemon and
+# were one stray `COPY . .` away from being baked into a published layer. The
+# .env.example files are documentation and stay, so a build failing on a missing
+# variable still shows you what it wanted.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Keys and certificates, same reasoning as above.
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+**/*.jks
+certs/
+certificates/
+secrets/
+
+# Local-only tooling and docs. None of it is read during a build.
+.local
+docs
+keycloak
+project-screenshots
+**/*.md
+.editorconfig
+.prettierrc
+.prettierignore
+.nvmrc
+.claude
+.vscode
+.idea
+
+# Noise
+**/*.log
+**/npm-debug.log*
+**/.DS_Store
+**/coverage

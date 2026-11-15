@@ -26,10 +26,7 @@ declare module '@exlinc/keycloak-passport' {
 
   export type VerifyCallback = (err?: Error | null, user?: any, info?: any) => void;
 
-  export type VerifyFunction = (
-    profile: KeycloakProfile,
-    done: VerifyCallback
-  ) => void;
+  export type VerifyFunction = (profile: KeycloakProfile, done: VerifyCallback) => void;
 
   export class Strategy extends PassportStrategy {
     constructor(options: KeycloakStrategyOptions, verify: VerifyFunction);

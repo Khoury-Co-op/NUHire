@@ -1,10 +1,7 @@
-// ============================================
-// src/controllers/candidate.controller.ts
-// ============================================
-
 import { Response } from 'express';
-import { AuthRequest } from '../models/types';
+import { AuthRequest } from '../models/AuthRequest';
 import { Pool } from 'mysql2';
+import { dbErrorStatus } from '../config/database';
 
 export class CandidateController {
   constructor(private db: Pool) {}
@@ -12,8 +9,6 @@ export class CandidateController {
   getCandidatesByGroups = (req: AuthRequest, res: Response): void => {
     const { classId, groupIds } = req.params;
     const groupIdArray = groupIds.split(',');
-
-    console.log(`Fetching candidates being interviewed by groups ${groupIds} in class ${classId}`);
 
     const placeholders = groupIdArray.map(() => '?').join(',');
 
@@ -43,15 +38,12 @@ export class CandidateController {
         return;
       }
 
-      console.log(`Found ${(results as any[]).length} candidates being interviewed by groups ${groupIds} in class ${classId}`);
       res.json(results);
     });
   };
 
   getCandidatesByClass = (req: AuthRequest, res: Response): void => {
     const { classId } = req.params;
-
-    console.log(`Fetching candidates for class ${classId}`);
 
     const query = `
       SELECT DISTINCT 
@@ -75,7 +67,6 @@ export class CandidateController {
         return;
       }
 
-      console.log(`Found ${(results as any[]).length} candidates for class ${classId}`);
       res.json(results);
     });
   };
@@ -83,7 +74,8 @@ export class CandidateController {
   getAllCandidates = (req: AuthRequest, res: Response): void => {
     this.db.query('SELECT * FROM Candidates', (err, results) => {
       if (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error fetching candidates:', err);
+        res.status(dbErrorStatus(err)).json({ error: 'Failed to fetch candidates' });
         return;
       }
       res.json(results);
@@ -94,7 +86,14 @@ export class CandidateController {
     const { id } = req.params;
     this.db.query('SELECT * FROM Candidates WHERE id = ?', [id], (err, results: any[]) => {
       if (err) {
-        res.status(500).json({ error: err.message });
+        console.error(`Error fetching candidate ${id}:`, err);
+        res.status(dbErrorStatus(err)).json({ error: 'Failed to fetch candidate' });
+        return;
+      }
+      // A 404, not an empty 200: an empty body makes the caller's
+      // response.json() throw somewhere unrelated to the real cause.
+      if (results.length === 0) {
+        res.status(404).json({ error: 'Candidate not found' });
         return;
       }
       res.json(results[0]);
@@ -103,20 +102,28 @@ export class CandidateController {
 
   getCandidateByResumeNumber = (req: AuthRequest, res: Response): void => {
     const { resume_number } = req.params;
-    this.db.query('SELECT * FROM Candidates WHERE resume_id = ?', [resume_number], (err, results: any[]) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
+    this.db.query(
+      'SELECT * FROM Candidates WHERE resume_id = ?',
+      [resume_number],
+      (err, results: any[]) => {
+        if (err) {
+          console.error(`Error fetching candidate for resume ${resume_number}:`, err);
+          res.status(dbErrorStatus(err)).json({ error: 'Failed to fetch candidate' });
+          return;
+        }
+        if (results.length === 0) {
+          res.status(404).json({ error: 'Candidate not found' });
+          return;
+        }
+        res.json(results[0]);
       }
-      console.log(`Fetched candidate with resume number ${resume_number}:`, results[0]);
-      res.json(results[0]);
-    });
+    );
   };
 
   getCandidateByResumeNumberWithFile = (req: AuthRequest, res: Response): void => {
-  const { resume_number } = req.params;
-  
-  const query = `
+    const { resume_number } = req.params;
+
+    const query = `
     SELECT 
       c.*,
       r.file_path,
@@ -125,14 +132,20 @@ export class CandidateController {
     LEFT JOIN Resume_pdfs r ON c.resume_id = r.id
     WHERE c.resume_id = ?
   `;
-  
-  this.db.query(query, [resume_number], (err, results: any[]) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    console.log(`Fetched candidate with resume number ${resume_number}:`, results[0]);
-    res.json(results[0]);
-  });
-};
+
+    this.db.query(query, [resume_number], (err, results: any[]) => {
+      if (err) {
+        console.error(`Error fetching candidate file for resume ${resume_number}:`, err);
+        res.status(dbErrorStatus(err)).json({ error: 'Failed to fetch candidate' });
+        return;
+      }
+      // A 404 lets interview-stage/page.tsx drop the candidate; an empty 200
+      // would render a card with every field undefined.
+      if (results.length === 0) {
+        res.status(404).json({ error: 'Candidate not found' });
+        return;
+      }
+      res.json(results[0]);
+    });
+  };
 }

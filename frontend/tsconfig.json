@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "baseUrl": ".",
     "paths": {
       "*": ["types/*"]
@@ -27,13 +23,10 @@
       }
     ]
   },
-  "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx"],
+  // "foo 2.ts" is what a file-sync client (iCloud, Dropbox) leaves behind when
+  // it resolves a conflict. Seven of them inside .next/types were enough to
+  // make `npm run typecheck` fail with duplicate-identifier errors that had
+  // nothing to do with the source, which is why nobody trusted the script.
+  "exclude": ["node_modules", "**/* [0-9].*"]
 }

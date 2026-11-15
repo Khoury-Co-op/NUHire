@@ -1,50 +1,40 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { useSocket } from "./socketContext";
-import { useAuth } from "./AuthContext";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+'use client';
+import React, { useEffect, useState } from 'react';
+import { useSocket } from './socketContext';
+import { useAuth } from './AuthContext';
+import { API_BASE_URL } from '../../lib/api';
 
 interface Fact {
   fact: string;
 }
 
-
 const Facts: React.FC = () => {
-  const {user, loading: userloading} = useAuth();
+  const { user, loading: userloading } = useAuth();
   const [facts, setFacts] = useState<Fact[]>([]);
-  
+
   const socket = useSocket();
 
-  useEffect(() => { 
-    console.log("user changed", user)
-  }, [user]);
-
   const fetchFacts = async () => {
-    console.log("Fetching facts...");
-    console.log ("User in fetchFacts:", user);
-
     const factsUrl = `${API_BASE_URL}/facts/get/${user?.class}`;
     try {
-      const factsRes = await fetch(factsUrl, { credentials: "include", method: "GET" });
-      console.log("Facts response:", factsRes);
+      const factsRes = await fetch(factsUrl, { credentials: 'include', method: 'GET' });
       if (factsRes.ok) {
         const factsData = await factsRes.json();
 
-        const factsArray = ["one", "two", "three"]
-          .map(key => factsData[key])
-          .filter(fact => fact && fact.trim());
+        const factsArray = ['one', 'two', 'three']
+          .map((key) => factsData[key])
+          .filter((fact) => fact && fact.trim());
 
-        setFacts(factsArray.map(fact => ({ fact })));
+        setFacts(factsArray.map((fact) => ({ fact })));
       } else {
-        console.warn("Facts fetch failed:", factsRes.status, await factsRes.text());
+        console.warn('Facts fetch failed:', factsRes.status, await factsRes.text());
       }
     } catch (error) {
-      console.error("Error fetching facts:", error);
+      console.error('Error fetching facts:', error);
     }
   };
 
- useEffect(() => {
+  useEffect(() => {
     if (!socket || !user?.class || !user?.group_id) return;
 
     const handleNewFacts = () => {
@@ -52,12 +42,12 @@ const Facts: React.FC = () => {
     };
 
     const roomId = `class_${user.class}`;
-    socket.emit("joinGroup", roomId);
+    socket.emit('joinGroup', roomId);
 
-    socket.on("factsUpdated", handleNewFacts);
+    socket.on('factsUpdated', handleNewFacts);
 
     return () => {
-      socket.off("factsUpdated", handleNewFacts);
+      socket.off('factsUpdated', handleNewFacts);
     };
   }, [socket, user]);
 
@@ -66,11 +56,7 @@ const Facts: React.FC = () => {
   }, [user]);
 
   if (userloading) {
-    return (
-      <div className="p-4 text-center text-gray-500">
-        Loading fun facts...
-      </div>
-    );
+    return <div className="p-4 text-center text-gray-500">Loading fun facts...</div>;
   }
 
   return (
@@ -84,7 +70,9 @@ const Facts: React.FC = () => {
         ))}
       </ul>
       {facts.length === 0 && (
-        <div className="text-center text-gray-400 mt-4">No facts available for your group/class.</div>
+        <div className="text-center text-gray-400 mt-4">
+          No facts available for your group/class.
+        </div>
       )}
     </div>
   );

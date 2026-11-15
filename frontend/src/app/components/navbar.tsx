@@ -1,8 +1,8 @@
-"use client";
-import React, { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import NotesPage from "../components/note";
-import { useRouter, usePathname } from "next/navigation";
+'use client';
+import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import NotesPage from '../components/note';
+import { useRouter, usePathname } from 'next/navigation';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,12 +12,12 @@ const Navbar = () => {
 
   const progressStepPages = [
     '/jobdes',
-    '/res-review', 
+    '/res-review',
     '/res-review-group',
     '/interview-stage',
-    '/makeOffer'
+    '/makeOffer',
   ];
-  
+
   const showHelpButton = progressStepPages.includes(pathname);
 
   useEffect(() => {
@@ -28,18 +28,17 @@ const Navbar = () => {
     };
 
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     } else {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
 
   const handleShowInstructions = () => {
-    console.log("pressed and inside function")
     window.dispatchEvent(new CustomEvent('showInstructions'));
   };
 
@@ -52,22 +51,25 @@ const Navbar = () => {
           onClick={() => setIsOpen((open) => !open)}
         >
           <span>Menu</span>
-          <span className={`transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>▶</span>
+          <span
+            className={`transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          >
+            ▶
+          </span>
         </button>
         <div className="absolute left-1/2 transform -translate-x-1/2">
-          <Link href="/dashboard" className="text-2xl font-rubik font-bold text-northeasternRed drop-shadow-lg">
+          <Link
+            href="/dashboard"
+            className="text-2xl font-rubik font-bold text-northeasternRed drop-shadow-lg"
+          >
             NUHire
           </Link>
         </div>
         <div className="flex items-center gap-2 ml-auto">
           {/* Help button - smaller */}
           {showHelpButton && (
-            <div className="bg-northeasternRed text-northeasterWhite px-3 py-1 rounded-md hover:bg-sand border-2 border-navy transition text-sm">
-
-              <button
-                onClick={handleShowInstructions}
-                className="w-full"
-              >
+            <div className="bg-northeasternRed text-northeasternWhite px-3 py-1 rounded-md hover:bg-sand border-2 border-navy transition text-sm">
+              <button onClick={handleShowInstructions} className="w-full">
                 Instructions
               </button>
             </div>
@@ -82,11 +84,10 @@ const Navbar = () => {
             <div
               className="w-5 h-5 bg-cover bg-center rounded-full border-2 border-northeasternWhite"
               style={{
-                backgroundImage:
-                  "url('https://cdn-icons-png.flaticon.com/512/847/847969.png')",
+                backgroundImage: "url('https://cdn-icons-png.flaticon.com/512/847/847969.png')",
               }}
             >
-              {" "}
+              {' '}
             </div>
           </Link>
         </div>
@@ -95,7 +96,12 @@ const Navbar = () => {
       <div
         ref={dropdownRef}
         className={`fixed top-0 left-0 z-50 bg-northeasternWhite shadow-lg transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} w-36 border-r-2 border-northeasternRed`}
-        style={{ borderTopRightRadius: isOpen ? '0.5rem' : '0', borderBottomRightRadius: isOpen ? '0.5rem' : '0', height: '180px', top: '0' }}
+        style={{
+          borderTopRightRadius: isOpen ? '0.5rem' : '0',
+          borderBottomRightRadius: isOpen ? '0.5rem' : '0',
+          height: '180px',
+          top: '0',
+        }}
       >
         <div className="flex flex-col gap-1 pt-4 px-3">
           <div className="flex items-center justify-between mb-1">
@@ -110,19 +116,28 @@ const Navbar = () => {
           </div>
           <button
             className="block px-3 py-1 font-rubik text-sm text-northeasternBlack hover:bg-northeasternRed hover:text-northeasternWhite rounded-md text-left"
-            onClick={() => { setIsOpen(false); router.push("/dashboard"); }}
+            onClick={() => {
+              setIsOpen(false);
+              router.push('/dashboard');
+            }}
           >
             Dashboard
           </button>
           <button
             className="block px-3 py-1 font-rubik text-sm text-northeasternRed hover:bg-northeasternRed hover:text-northeasternWhite rounded-md text-left"
-            onClick={() => { setIsOpen(false); router.push("/userProfile"); }}
+            onClick={() => {
+              setIsOpen(false);
+              router.push('/userProfile');
+            }}
           >
             Profile
           </button>
           <button
             className="block px-3 py-1 font-rubik text-sm text-northeasternRed hover:bg-northeasternRed hover:text-northeasternWhite rounded-md text-left"
-            onClick={() => { setIsOpen(false); router.push("/notes"); }}
+            onClick={() => {
+              setIsOpen(false);
+              router.push('/notes');
+            }}
           >
             Notes
           </button>

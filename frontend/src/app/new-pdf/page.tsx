@@ -1,20 +1,10 @@
 'use client';
-export const dynamic = "force-dynamic";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import NavbarAdmin from "../components/navbar-admin";
-import AdminReactionPopup from "../components/adminReactionPopup";
-import { useSocket } from "../components/socketContext";
-import Popup from "../components/popup";
-import { useAuth } from "../components/AuthContext";
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  affiliation: string;
-}
+export const dynamic = 'force-dynamic';
+import { API_BASE_URL } from '../../lib/api';
+import { useState, useEffect } from 'react';
+import NavbarAdmin from '../components/navbar-admin';
+import Popup from '../components/popup';
+import { useAuth } from '../components/AuthContext';
 
 interface Job {
   id: number;
@@ -48,29 +38,27 @@ const Upload = () => {
   const [selectedClass, setSelectedClass] = useState('');
 
   // Separate states for Job Description
-  const [jobTitle, setJobTitle] = useState("");
+  const [jobTitle, setJobTitle] = useState('');
   const [jobFile, setJobFile] = useState<File | null>(null);
   const [jobUploading, setJobUploading] = useState(false);
 
   // Separate states for Resume
-  const [resTitle, setResTitle] = useState("");
-  const [resFirstName, setResFirstName] = useState("");
-  const [resLastName, setResLastName] = useState("");
-  const [resYouTubeVideo, setResYouTubeVideo] = useState("");
+  const [resTitle, setResTitle] = useState('');
+  const [resFirstName, setResFirstName] = useState('');
+  const [resLastName, setResLastName] = useState('');
+  const [resYouTubeVideo, setResYouTubeVideo] = useState('');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUploading, setResumeUploading] = useState(false);
 
   // Scroll states for jobs and resumes
   const [jobsScrollState, setJobsScrollState] = useState({
     canScrollDown: false,
-    canScrollUp: false
+    canScrollUp: false,
   });
   const [resumesScrollState, setResumesScrollState] = useState({
     canScrollDown: false,
-    canScrollUp: false
+    canScrollUp: false,
   });
-
-  const socket = useSocket();
 
   const handleJobsScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
@@ -117,7 +105,7 @@ const Upload = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/moderator/classes-full/${user.email}`, {
-          credentials: 'include'
+          credentials: 'include',
         });
         if (response.ok) {
           const classData = await response.json();
@@ -147,12 +135,12 @@ const Upload = () => {
 
     try {
       const response = await fetch(`${API_BASE_URL}/jobs?class_id=${selectedClass}`, {
-        credentials: "include"
+        credentials: 'include',
       });
       const data = await response.json();
       setJobs(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching jobs:", error);
+      console.error('Error fetching jobs:', error);
     }
   };
 
@@ -161,52 +149,55 @@ const Upload = () => {
 
     try {
       const response = await fetch(`${API_BASE_URL}/resume_pdf?class_id=${selectedClass}`, {
-        credentials: "include"
+        credentials: 'include',
       });
       const data = await response.json();
       setResumes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching resumes:", error);
+      console.error('Error fetching resumes:', error);
     }
   };
 
-  const deleteResume = async (resumeId: number, filePath: string, classId: number) => {
-    const fileName = filePath.split("/").pop();
+  const deleteResume = async (filePath: string, classId: number) => {
+    const fileName = filePath.split('/').pop();
     try {
-      const response = await fetch(`${API_BASE_URL}/delete/resume/${fileName}?class_id=${classId}`, {
-        method: "DELETE",
-        credentials: "include"
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/delete/resume/${fileName}?class_id=${classId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Error: ${await response.text()}`);
       }
 
-      setPopup({ headline: "Success", message: "Resume deleted successfully." });
+      setPopup({ headline: 'Success', message: 'Resume deleted successfully.' });
       fetchResumes();
     } catch (error) {
-      console.error("Failed to delete file:", error);
-      setPopup({ headline: "Error", message: "Failed to delete the resume." });
+      console.error('Failed to delete file:', error);
+      setPopup({ headline: 'Error', message: 'Failed to delete the resume.' });
     }
   };
 
-  const deleteJob = async (jobId: number, filePath: string, classId: number) => {
-    const fileName = filePath.split("/").pop();
+  const deleteJob = async (filePath: string, classId: number) => {
+    const fileName = filePath.split('/').pop();
     try {
       const response = await fetch(`${API_BASE_URL}/delete/job/${fileName}?class_id=${classId}`, {
-        method: "DELETE",
-        credentials: "include"
+        method: 'DELETE',
+        credentials: 'include',
       });
 
       if (!response.ok) {
         throw new Error(`Error: ${await response.text()}`);
       }
 
-      setPopup({ headline: "Success", message: "Job description deleted successfully." });
+      setPopup({ headline: 'Success', message: 'Job description deleted successfully.' });
       fetchJobs();
     } catch (error) {
-      console.error("Failed to delete file:", error);
-      setPopup({ headline: "Error", message: "Failed to delete the job description." });
+      console.error('Failed to delete file:', error);
+      setPopup({ headline: 'Error', message: 'Failed to delete the job description.' });
     }
   };
 
@@ -225,72 +216,68 @@ const Upload = () => {
   // Extract YouTube URL from HTML embed code or regular URL
   const extractYouTubeUrl = (input: string): string | null => {
     const cleanInput = input.trim();
-    
+
     // Pattern 1: Extract from iframe src attribute
-    const iframeMatch = cleanInput.match(/src=["'](https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+)["']/i);
+    const iframeMatch = cleanInput.match(
+      /src=["'](https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+)["']/i
+    );
     if (iframeMatch) {
       return iframeMatch[1];
     }
-    
+
     // Pattern 2: Extract video ID from various YouTube URL formats
     const patterns = [
       /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
       /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
       /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})/,
     ];
-    
+
     for (const pattern of patterns) {
       const match = cleanInput.match(pattern);
       if (match && match[1]) {
         return `https://www.youtube.com/watch?v=${match[1]}`;
       }
     }
-    
+
     // If input is already a valid YouTube URL, return it
     if (/^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)/.test(cleanInput)) {
       return cleanInput;
     }
-    
-    return null;
-  };
 
-  const isValidYouTubeUrl = (url: string): boolean => {
-    const extractedUrl = extractYouTubeUrl(url);
-    return extractedUrl !== null;
+    return null;
   };
 
   const uploadJobDescription = async () => {
     if (!selectedClass)
-      return setPopup({ headline: "Error", message: "Please select a class first." });
-    if (!jobFile)
-      return setPopup({ headline: "Error", message: "No file selected for upload." });
+      return setPopup({ headline: 'Error', message: 'Please select a class first.' });
+    if (!jobFile) return setPopup({ headline: 'Error', message: 'No file selected for upload.' });
     if (!jobTitle.trim())
-      return setPopup({ headline: "Error", message: "Please enter a job title before uploading." });
+      return setPopup({ headline: 'Error', message: 'Please enter a job title before uploading.' });
 
     const formData = new FormData();
-    formData.append("jobDescription", jobFile);
+    formData.append('jobDescription', jobFile);
 
     try {
       setJobUploading(true);
       const response = await fetch(`${API_BASE_URL}/upload/job`, {
-        method: "POST",
+        method: 'POST',
         body: formData,
-        credentials: "include"
+        credentials: 'include',
       });
 
-      if (!response.ok) throw new Error("Job description upload failed");
+      if (!response.ok) throw new Error('Job description upload failed');
 
       const { filePath } = await response.json();
 
       await fetch(`${API_BASE_URL}/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: jobTitle, filePath, class_id: selectedClass }),
-        credentials: "include"
+        credentials: 'include',
       });
 
       fetchJobs();
-      setJobTitle("");
+      setJobTitle('');
       setJobFile(null);
 
       const jobFileInput = document.querySelector(
@@ -300,10 +287,10 @@ const Upload = () => {
         jobFileInput.value = '';
       }
 
-      setPopup({ headline: "Success", message: "Job description uploaded successfully!" });
+      setPopup({ headline: 'Success', message: 'Job description uploaded successfully!' });
     } catch (error) {
-      console.error("Job upload error:", error);
-      setPopup({ headline: "Error", message: "Failed to upload job description" });
+      console.error('Job upload error:', error);
+      setPopup({ headline: 'Error', message: 'Failed to upload job description' });
     } finally {
       setJobUploading(false);
     }
@@ -311,66 +298,72 @@ const Upload = () => {
 
   const uploadResume = async () => {
     if (!selectedClass)
-      return setPopup({ headline: "Error", message: "Please select a class first." });
+      return setPopup({ headline: 'Error', message: 'Please select a class first.' });
     if (!resumeFile)
-      return setPopup({ headline: "Error", message: "No file selected for upload." });
+      return setPopup({ headline: 'Error', message: 'No file selected for upload.' });
     if (!resTitle.trim())
-      return setPopup({ headline: "Error", message: "Please enter a resume title before uploading." });
+      return setPopup({
+        headline: 'Error',
+        message: 'Please enter a resume title before uploading.',
+      });
     if (!resFirstName.trim())
-      return setPopup({ headline: "Error", message: "Please enter the candidate's first name." });
+      return setPopup({ headline: 'Error', message: "Please enter the candidate's first name." });
     if (!resLastName.trim())
-      return setPopup({ headline: "Error", message: "Please enter the candidate's last name." });
+      return setPopup({ headline: 'Error', message: "Please enter the candidate's last name." });
     if (!resYouTubeVideo.trim())
-      return setPopup({ headline: "Error", message: "Please paste the YouTube video link or embed code." });
+      return setPopup({
+        headline: 'Error',
+        message: 'Please paste the YouTube video link or embed code.',
+      });
 
     // Extract the YouTube URL from whatever format the user provided
     const extractedUrl = extractYouTubeUrl(resYouTubeVideo);
-    
+
     if (!extractedUrl)
-      return setPopup({ 
-        headline: "Error", 
-        message: "Please enter a valid YouTube URL or embed code." 
+      return setPopup({
+        headline: 'Error',
+        message: 'Please enter a valid YouTube URL or embed code.',
       });
 
     const formData = new FormData();
-    formData.append("resume", resumeFile);
+    formData.append('resume', resumeFile);
 
     try {
       setResumeUploading(true);
       const response = await fetch(`${API_BASE_URL}/upload/resume`, {
-        method: "POST",
+        method: 'POST',
         body: formData,
-        credentials: "include"
+        credentials: 'include',
       });
 
-      if (!response.ok) throw new Error("Resume upload failed");
+      if (!response.ok) throw new Error('Resume upload failed');
 
       const { filePath } = await response.json();
 
       const dbResponse = await fetch(`${API_BASE_URL}/resume_pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resTitle,
           filePath,
           f_name: resFirstName,
           l_name: resLastName,
           vid: extractedUrl, // Use the extracted URL
-          class_id: selectedClass
+          class_id: selectedClass,
         }),
-        credentials: "include"
+        credentials: 'include',
       });
 
       if (!dbResponse.ok) {
         const errorData = await dbResponse.json();
-        throw new Error(errorData.error || "Database error");
+        throw new Error(errorData.error || 'Database error');
       }
 
       fetchResumes();
-      setResTitle("");
-      setResFirstName("");
-      setResLastName("");
-      setResYouTubeVideo("");
+      setResTitle('');
+      setResFirstName('');
+      setResLastName('');
+      setResYouTubeVideo('');
       setResumeFile(null);
 
       const resumeFileInput = document.querySelector(
@@ -380,11 +373,12 @@ const Upload = () => {
         resumeFileInput.value = '';
       }
 
-      setPopup({ headline: "Success", message: "Resume uploaded successfully!" });
+      setPopup({ headline: 'Success', message: 'Resume uploaded successfully!' });
     } catch (error) {
-      console.error("Resume upload error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Resume upload failed. Please try again.";
-      setPopup({ headline: "Error", message: errorMessage });
+      console.error('Resume upload error:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Resume upload failed. Please try again.';
+      setPopup({ headline: 'Error', message: errorMessage });
     } finally {
       setResumeUploading(false);
     }
@@ -398,7 +392,7 @@ const Upload = () => {
     );
   }
 
-  if (!user || user.affiliation !== "admin")
+  if (!user || user.affiliation !== 'admin')
     return <div className="text-center mt-10 text-xl text-red-600">Unauthorized</div>;
 
   return (
@@ -407,9 +401,7 @@ const Upload = () => {
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         {/* Class Selector */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <label className="block text-lg font-semibold text-gray-700 mb-3">
-            Select Class:
-          </label>
+          <label className="block text-lg font-semibold text-gray-700 mb-3">Select Class:</label>
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
@@ -426,7 +418,9 @@ const Upload = () => {
 
         {!selectedClass ? (
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <p className="text-gray-500 text-lg">Please select a class to upload jobs and resumes</p>
+            <p className="text-gray-500 text-lg">
+              Please select a class to upload jobs and resumes
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -452,7 +446,7 @@ const Upload = () => {
                   disabled={jobUploading}
                   className="w-full bg-navy text-white py-3 rounded-md hover:bg-opacity-90 transition duration-200 disabled:opacity-50"
                 >
-                  {jobUploading ? "Uploading..." : "Upload Job Description"}
+                  {jobUploading ? 'Uploading...' : 'Upload Job Description'}
                 </button>
               </div>
 
@@ -471,11 +465,16 @@ const Upload = () => {
                   className="max-h-96 overflow-y-auto border border-gray-300 rounded-lg p-4"
                 >
                   {jobs.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No job descriptions uploaded yet.</p>
+                    <p className="text-gray-500 text-center py-8">
+                      No job descriptions uploaded yet.
+                    </p>
                   ) : (
                     <ul className="space-y-3">
                       {jobs.map((job) => (
-                        <li key={job.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <li
+                          key={job.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        >
                           <span className="font-medium text-gray-700">{job.title}</span>
                           <div className="flex gap-2">
                             <a
@@ -487,7 +486,7 @@ const Upload = () => {
                               View PDF
                             </a>
                             <button
-                              onClick={() => deleteJob(job.id, job.file_path, job.class_id)}
+                              onClick={() => deleteJob(job.file_path, job.class_id)}
                               className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition duration-200"
                             >
                               Delete
@@ -551,7 +550,7 @@ const Upload = () => {
                   disabled={resumeUploading}
                   className="w-full bg-navy text-white py-3 rounded-md hover:bg-opacity-90 transition duration-200 disabled:opacity-50"
                 >
-                  {resumeUploading ? "Uploading..." : "Upload Candidate"}
+                  {resumeUploading ? 'Uploading...' : 'Upload Candidate'}
                 </button>
               </div>
 
@@ -598,7 +597,7 @@ const Upload = () => {
                               </a>
                             )}
                             <button
-                              onClick={() => deleteResume(resume.id, resume.file_path, resume.class_id)}
+                              onClick={() => deleteResume(resume.file_path, resume.class_id)}
                               className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition duration-200 ml-auto text-sm"
                             >
                               Delete

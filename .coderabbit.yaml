@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://docs.coderabbit.ai/schema.json
+#
+# CodeRabbit reviews every PR and comments. It never blocks a merge: a lead's
+# approval is still the gate (CODEOWNERS plus the main branch rules).
+# The project rules it reviews against are in AGENTS.md.
+
+language: en-US
+tone_instructions: 'Short and plain. Name the file and line. Explain failures in terms of a live class of 30 students. No praise or filler.'
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - '!**/package-lock.json'
+    - '!docs/archive/**'
+    - '!frontend/public/**'
+    - '!project-screenshots/**'
+  path_instructions:
+    - path: 'api/src/**'
+      instructions: |
+        - Any query or emit scoped to a group must filter on group_id AND class. group_id alone leaks across course sections.
+        - student_id, group_id, class and email must come from req.user or the authenticated socket, never the request body or URL.
+        - Parameterized queries only (mysql2 `?` placeholders). Flag any template-interpolated SQL.
+        - Transactions must use one checked-out connection, never the pool.
+        - Flag new `any`, new console.log, swallowed errors, and err.message sent to the client.
+    - path: 'api/src/config/socket.ts'
+      instructions: |
+        - Emit to rooms (io.to(room)), never a bare io.emit.
+        - Teacher-only events must check the sender is an admin.
+        - No group or session state in process memory; it has to survive a restart in MySQL.
+    - path: 'database-files/**'
+      instructions: |
+        - A schema change needs a new numbered file in database-files/migrations/ that is safe to run twice.
+        - Never edit, rename or delete a migration that is already on main.
+    - path: 'frontend/src/app/**'
+      instructions: |
+        - Any wait or gate needs an HTTP fallback (fetch on mount and on reconnect), not only a socket event.
+        - Pages that join a socket room must re-join on the socket 'connect' event.
+        - Read the API URL from NEXT_PUBLIC_API_BASE_URL, never hardcode it.
+        - Destructive actions (Assign Job, delete, reset) need a confirm that names what will be lost.
+    - path: '**/realm-export.json'
+      instructions: |
+        - Flag any client secrets, password, or token committed in plain text.
+        - Flag any changes to redirectUris, webOrigins, token lifespans, or the email domain check, and say what they change for students logging in.
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - 'AGENTS.md'
+
+chat:
+  auto_reply: true

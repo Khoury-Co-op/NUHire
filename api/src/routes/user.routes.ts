@@ -10,14 +10,14 @@ export default (db: Pool, io: SocketIOServer): Router => {
   const router = Router();
   const userController = new UserController(db, io);
 
-  router.post('/', userController.createUser);
-  router.get('/', requireAuth, userController.getAllUsers);
-  router.get('/students', requireAuth, userController.getStudents);
-  router.get('/:id', requireAuth, userController.getUserById);
+  router.post('/', requireAuth, userController.createUser);
+  // Full roster dumps. Nothing in the frontend calls these today.
+  router.get('/', requireAdmin, userController.getAllUsers);
+  router.get('/students', requireAdmin, userController.getStudents);
   router.post('/update-currentpage', requireAuth, userController.updateCurrentPage);
   router.post('/update-user-class', requireAuth, userController.updateUserClass);
   router.post('/update-seen', requireAuth, userController.updateUserSeen);
-  router.get('/check/:email', userController.check);
+  router.get('/check/:email', requireAuth, userController.check);
 
   return router;
-}; 
+};

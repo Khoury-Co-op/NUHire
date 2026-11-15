@@ -1,97 +1,119 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Slideshow from "../components/slideshow"; 
-import { useAuth } from "../components/AuthContext";
+'use client';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import Slideshow from '../components/slideshow';
+import { useAuth } from '../components/AuthContext';
+import { PageLoader } from '../components/spinner';
+import { API_BASE_URL } from '../../lib/api';
 
 export default function InstructionsPage() {
   const { user, loading: userLoading } = useAuth();
   const router = useRouter();
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const updateUserSeeDash = async () => {
     if (!user?.email) return false;
-    
+
     try {
-      console.log("Updating user-see-dash field for email:", user.email);
-      
       const response = await fetch(`${API_BASE_URL}/users/update-seen`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        credentials: "include",
+        credentials: 'include',
         body: JSON.stringify({
-          email: user.email
+          email: user.email,
         }),
       });
 
-      console.log("Response from update-seen endpoint:", response);
       if (response.ok) {
-        const result = await response.json();
-        console.log("Successfully updated user-see-dash field:", result);
         return true;
       } else {
-        console.error("Failed to update user-see-dash field:", response.statusText);
+        console.error('Failed to update user-see-dash field:', response.statusText);
         return false;
       }
     } catch (error) {
-      console.error("Error updating user-see-dash field:", error);
+      console.error('Error updating user-see-dash field:', error);
       return false;
     }
   };
 
   const handleContinue = async () => {
     if (!user) return;
-    
+
     await updateUserSeeDash();
     const fullName = `${user.f_name} ${user.l_name}`.trim();
-    window.location.href = `${process.env.NEXT_PUBLIC_FRONT_URL}/dashboard?name=${encodeURIComponent(fullName)}`;
+    router.push(`/dashboard?name=${encodeURIComponent(fullName)}`);
   };
 
   if (userLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-sand">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Loading...</h2>
-          <div className="w-16 h-16 border-t-4 border-navy border-solid rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-    );
-  }  
+    return <PageLoader />;
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-sand font-rubik">
       <div className="fixed inset-0 z-0">
         <Slideshow />
       </div>
-            
-      <div className="fixed inset-0 bg-sand/80 z-5" />
-      
+
+      <div className="fixed inset-0 bg-sand/80 z-[5]" />
+
       <div className="z-10 flex flex-col items-center relative flex-grow p-8 overflow-y-auto">
-        <h1 className="text-4xl font-extrabold text-northeasternRed mb-8 text-center">NUHire Progress Steps</h1>
-        <h2 className="text-3xl font-extrabold text-northeasternBlack mb-8 text-center">In the shoes of an employer, you will go through the following steps:</h2>
+        <h1 className="text-4xl font-extrabold text-northeasternRed mb-8 text-center">
+          NUHire Progress Steps
+        </h1>
+        <h2 className="text-3xl font-extrabold text-northeasternBlack mb-8 text-center">
+          In the shoes of an employer, you will go through the following steps:
+        </h2>
         <div className="max-w-2xl w-full space-y-8 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-md p-6 border-l-8 border-northeasternRed">
-            <h2 className="text-2xl font-bold mb-2"><span className="text-northeasternRed">1.</span> <span className="text-navy">Job Description</span></h2>
-            <p className="text-gray-800">Your group will be assigned a real job description. Read it carefully to understand the role and what the employer is looking for in a candidate.</p>
+            <h2 className="text-2xl font-bold mb-2">
+              <span className="text-northeasternRed">1.</span>{' '}
+              <span className="text-navy">Job Description</span>
+            </h2>
+            <p className="text-gray-800">
+              Your group will be assigned a real job description. Read it carefully to understand
+              the role and what the employer is looking for in a candidate.
+            </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6 border-l-8 border-northeasternRed">
-            <h2 className="text-2xl font-bold mb-2"><span className="text-northeasternRed">2.</span> <span className="text-navy">Resume Review</span></h2>
-            <p className="text-gray-800">Individually, you'll review a set of candidate resumes. Mark which ones you think are strong fits for the job. Your group will later discuss and compare your choices.</p>
+            <h2 className="text-2xl font-bold mb-2">
+              <span className="text-northeasternRed">2.</span>{' '}
+              <span className="text-navy">Resume Review</span>
+            </h2>
+            <p className="text-gray-800">
+              Individually, you'll review a set of candidate resumes. Mark which ones you think are
+              strong fits for the job. Your group will later discuss and compare your choices.
+            </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6 border-l-8 border-northeasternRed">
-            <h2 className="text-2xl font-bold mb-2"><span className="text-northeasternRed">3.</span> <span className="text-navy">Group Resume Review</span></h2>
-            <p className="text-gray-800">As a team, you'll discuss your individual resume picks and decide together which candidates should move forward to the interview stage.</p>
+            <h2 className="text-2xl font-bold mb-2">
+              <span className="text-northeasternRed">3.</span>{' '}
+              <span className="text-navy">Group Resume Review</span>
+            </h2>
+            <p className="text-gray-800">
+              As a team, you'll discuss your individual resume picks and decide together which
+              candidates should move forward to the interview stage.
+            </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6 border-l-8 border-northeasternRed">
-            <h2 className="text-2xl font-bold mb-2"><span className="text-northeasternRed">4.</span> <span className="text-navy">Interview Stage</span></h2>
-            <p className="text-gray-800">Watch short video interviews of the selected candidates. Rate their responses and discuss as a group who impressed you most.</p>
+            <h2 className="text-2xl font-bold mb-2">
+              <span className="text-northeasternRed">4.</span>{' '}
+              <span className="text-navy">Interview Stage</span>
+            </h2>
+            <p className="text-gray-800">
+              Watch short video interviews of the selected candidates. Rate their responses and
+              discuss as a group who impressed you most.
+            </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6 border-l-8 border-northeasternRed">
-            <h2 className="text-2xl font-bold mb-2"><span className="text-northeasternRed">5.</span> <span className="text-navy">Make Offer</span></h2>
-            <p className="text-gray-800">Your group will choose the candidate that gets a job offer for the role and submit your hiring decision.</p>
+            <h2 className="text-2xl font-bold mb-2">
+              <span className="text-northeasternRed">5.</span>{' '}
+              <span className="text-navy">Make Offer</span>
+            </h2>
+            <p className="text-gray-800">
+              Your group will choose the candidate that gets a job offer for the role and submit
+              your hiring decision.
+            </p>
           </div>
         </div>
         <button
@@ -102,7 +124,7 @@ export default function InstructionsPage() {
           Continue to Dashboard
         </button>
       </div>
-      
+
       <footer className="w-full flex justify-center p-2 bg-navy/90 backdrop-blur-sm shadow-md font-rubik text-2xl z-20">
         <a
           className="flex items-center text-wood hover:text-blue-300 transition-colors duration-200"

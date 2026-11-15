@@ -1,6 +1,6 @@
 'use client';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { API_BASE_URL } from '../../lib/api';
 
 interface User {
   email: string;
@@ -14,18 +14,16 @@ interface ProgressOperations {
 }
 
 export const useProgressManager = (): ProgressOperations => {
-
   const fetchProgress = async (user: User): Promise<string> => {
     if (!user?.email) {
       return 'none';
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/progress/user/${user.email}`,
-        { credentials: 'include' }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}/progress/user/${user.email}`, {
+        credentials: 'include',
+      });
+
       if (response.ok) {
         const data = await response.json();
         return data?.step || 'none';
@@ -41,32 +39,30 @@ export const useProgressManager = (): ProgressOperations => {
       return;
     }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/progress`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          crn: user.class,
-          group_id: user.group_id,
-          step: step,
-          email: user.email
-        })
-      });
-      
-      if (response.ok) {
-        console.log("===================Progress updated successfully to, ", step);
-      } else {
-        const errorText = await response.text();
-        throw new Error(`Failed to update progress: ${errorText}`);
-      }
-    } catch (error) {
-      throw error;
+    const response = await fetch(`${API_BASE_URL}/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      // Callers navigate right after this resolves or fails. keepalive lets
+      // the write finish even if the page unloads first, otherwise the next
+      // page's progress POST is a skip and gets a 409.
+      keepalive: true,
+      body: JSON.stringify({
+        crn: user.class,
+        group_id: user.group_id,
+        step: step,
+        email: user.email,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update progress: ${errorText}`);
     }
   };
 
-  return { 
-    fetchProgress, 
+  return {
+    fetchProgress,
     updateProgress,
   };
 };

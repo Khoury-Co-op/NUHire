@@ -2,10 +2,14 @@ name: deploy
 
 on:
   push:
-    branches: [ dev ]
+    branches: [dev]
 
 jobs:
   deploy:
+    # The Coolify secrets and the self-hosted runner only exist in the Khoury
+    # repo. Anywhere else this job would sit queued for a runner that never
+    # comes, then get cancelled.
+    if: github.repository == 'Khoury-Co-op/NUHire'
     runs-on: khoury-coop-nuhire-runners
     steps:
       - name: Trigger coolify deploy

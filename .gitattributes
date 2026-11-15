@@ -1,0 +1,4 @@
+# Check out every text file with LF endings, on every OS. Without this, git on
+# Windows can convert files to CRLF, and the Linux containers that run the app
+# choke on them.
+* text=auto eol=lf

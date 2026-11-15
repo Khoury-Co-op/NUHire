@@ -1,0 +1,13 @@
+# Used by `docker build -f api/dockerfile .` in place of a root .dockerignore.
+# The build context is the whole repo, so send only what the API image needs:
+# its own source and the database migrations it runs at startup. Everything
+# else (frontend, every node_modules, .env files) stays out.
+*
+!api/package.json
+!api/package-lock.json
+!api/tsconfig.json
+!api/prisma7.config.ts
+!api/prisma/
+!api/src/
+!api/uploads/
+!database-files/migrations/

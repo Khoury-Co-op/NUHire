@@ -30,44 +30,55 @@ export function configurePassport(db: Pool): void {
         clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
         callbackURL: process.env.KEYCLOAK_CALLBACK_URL,
         scope: 'openid profile email',
+        // The authorize URL carried no `state`, so /auth/keycloak/callback
+        // accepted any code anyone sent it: an attacker could start a flow with
+        // their own Keycloak account and land a student's browser in that
+        // session, which in this app means their group (SEC-19).
+        //
+        // passport-oauth2 stores the nonce in req.session, so this only works
+        // because the session middleware also runs on /auth. app.ts sets
+        // saveUninitialized: false, and writing the nonce is what marks the
+        // session modified, which is what gets the cookie onto the redirect;
+        // without a `state` there is nothing to write and no cookie either.
+        state: true,
         authorizationURL: `${keycloak_url}/realms/${keycloak_realm}/protocol/openid-connect/auth`,
         tokenURL: `${keycloak_url}/realms/${keycloak_realm}/protocol/openid-connect/token`,
-        userInfoURL: `${keycloak_url}/realms/${keycloak_realm}/protocol/openid-connect/userinfo`
+        userInfoURL: `${keycloak_url}/realms/${keycloak_realm}/protocol/openid-connect/userinfo`,
       },
-      async (accessToken: string, refreshToken: string, profile: KeycloakProfile, done: (error: any, user?: any) => void) => {
+      async (
+        accessToken: string,
+        refreshToken: string,
+        profile: KeycloakProfile,
+        done: (error: any, user?: any) => void
+      ) => {
         try {
           const userEmail = profile.email;
-          const parts = profile.name.split(" ");
+          const parts = profile.name.split(' ');
           const fname = parts[0];
           const lname = parts[1];
-          
+
           if (!userEmail) {
             throw new Error('No email found in Keycloak profile');
           }
 
-          const [rows] = await db.promise().execute(
-            'SELECT * FROM Users WHERE email = ?',
-            [userEmail]
-          );
+          const [rows] = await db
+            .promise()
+            .execute('SELECT * FROM Users WHERE email = ?', [userEmail]);
 
           const users = rows as any[];
           let dbUser;
 
-
           if (users.length === 0) {
-            await db.promise().execute(
-              'INSERT INTO Users (email, f_name, l_name, affiliation) VALUES (?, ?, ?, ?)',
-              [
-                userEmail,
-                fname, lname,
-                'none'
-              ]
-            );
+            await db
+              .promise()
+              .execute(
+                'INSERT INTO Users (email, f_name, l_name, affiliation) VALUES (?, ?, ?, ?)',
+                [userEmail, fname, lname, 'none']
+              );
 
-            const [newUserRows] = await db.promise().execute(
-              'SELECT * FROM Users WHERE email = ?',
-              [userEmail]
-            );
+            const [newUserRows] = await db
+              .promise()
+              .execute('SELECT * FROM Users WHERE email = ?', [userEmail]);
             dbUser = (newUserRows as any[])[0];
           } else {
             dbUser = users[0];
@@ -85,17 +96,13 @@ export function configurePassport(db: Pool): void {
   );
 
   passport.serializeUser((user: any, done) => {
-    console.log('✅ SERIALIZING USER:', user);
-    done(null, user.id); // or whatever identifier you use
+    done(null, user.id);
   });
 
   passport.deserializeUser(async (id: string, done) => {
     try {
-      const [rows] = await db.promise().execute(
-        'SELECT * FROM Users WHERE id = ?',
-        [id]
-      );
-      
+      const [rows] = await db.promise().execute('SELECT * FROM Users WHERE id = ?', [id]);
+
       const users = rows as any[];
       if (users.length > 0) {
         done(null, users[0]);

@@ -1,23 +1,21 @@
-"use client"; // Declares that this page is a client component
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // "https://nuhire-api-cz6c.onrender.com";
-import React, { useState, useCallback, useEffect } from "react"; // Importing React and hooks for state and effect management
-import { io } from "socket.io-client";
-import { useAuth } from "./AuthContext";
-
-const socket = io(API_BASE_URL);
+'use client'; // Declares that this page is a client component
+import { API_BASE_URL } from '../../lib/api';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { useSocket } from './socketContext';
+import type { Note } from '../../types';
 const NotesPage = () => {
   // State variables to manage notes and their visibility
   const [isOpen, setIsOpen] = useState(false);
-  const [note, setNote] = useState("");
-  
-  interface Note {
-    id: string;
-    content: string;
-  }
+  const [note, setNote] = useState('');
 
   const [notes, setNotes] = useState<Note[]>([]);
-  const [userEmail, setUserEmail] = useState("");
-  const { user, loading: userloading } = useAuth();
+  const [userEmail, setUserEmail] = useState('');
+  const { user } = useAuth();
+  // Use the app-wide socket. This component previously called io() at module
+  // scope, which opened a SECOND connection per browser tab (the navbar renders
+  // it on every page), doubling connection count for the whole class.
+  const socket = useSocket();
 
   useEffect(() => {
     if (user && user.email) {
@@ -28,52 +26,56 @@ const NotesPage = () => {
   const fetchNotes = useCallback(async () => {
     if (!userEmail) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/notes?user_email=${encodeURIComponent(userEmail)}`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch notes");
+      const response = await fetch(
+        `${API_BASE_URL}/notes?user_email=${encodeURIComponent(userEmail)}`,
+        {
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) throw new Error('Failed to fetch notes');
       const data = await response.json();
       setNotes(data);
     } catch (error) {
-      console.error("Error fetching notes:", error);
+      console.error('Error fetching notes:', error);
     }
-  }, [userEmail]); // ✅ Make fetchNotes stable with useCallback
-
-// Then the useEffect becomes:
-useEffect(() => {
-  fetchNotes();
-}, [fetchNotes]); // ✅ Now depends on the stable callback
+  }, [userEmail]);
 
   useEffect(() => {
-    socket.on("jobUpdated", () => {
-      setNotes([]); 
+    fetchNotes();
+  }, [fetchNotes]);
+
+  useEffect(() => {
+    if (!socket) return;
+    // Notes are only erased by a reset, so a plain job change leaves them alone.
+    const onJobUpdated = ({ reset }: { reset?: boolean }) => {
+      if (reset === false) return;
+      setNotes([]);
       setNote('');
-    });
-    return () => {
-      socket.off("jobUpdated");
     };
-  }, []);
-  
+    socket.on('jobUpdated', onJobUpdated);
+    return () => {
+      socket.off('jobUpdated', onJobUpdated);
+    };
+  }, [socket]);
 
   const saveNote = async () => {
     if (!note.trim()) return;
 
     try {
       const response = await fetch(`${API_BASE_URL}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({user_email: userEmail, content: note }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ user_email: userEmail, content: note }),
       });
 
       if (!response.ok) throw new Error(`Failed to save note: ${userEmail}`);
-      console.log("Note saved successfully");
       const newNote = await response.json();
       setNotes([...notes, newNote]);
       fetchNotes();
-      setNote("");
+      setNote('');
     } catch (error) {
-      console.error("Error saving note:", error);
+      console.error('Error saving note:', error);
     }
   };
 
@@ -81,7 +83,7 @@ useEffect(() => {
     <div className="relative p-4">
       {/* Toggle Notes Button */}
       <button
-        className="bg-northeasternRed text-northeasterWhite px-4 py-2 rounded-md hover:bg-sand border-4 border-navy transition"
+        className="bg-northeasternRed text-northeasternWhite px-4 py-2 rounded-md hover:bg-sand border-4 border-navy transition"
         onClick={() => setIsOpen(!isOpen)}
       >
         ☰ Notes
@@ -96,7 +98,7 @@ useEffect(() => {
               className="w-full p-2 border border-gray-300 bg-northeasternWhite text-northeasternBlack rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-            />t
+            />
             <button
               onClick={saveNote}
               className="mt-2 w-full bg-northeasternWhite border border-gray-300 text-northeasternBlack py-2 rounded-md hover:bg-sand transition"

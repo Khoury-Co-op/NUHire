@@ -1,35 +1,32 @@
 'use client';
-export const dynamic = "force-dynamic";
-import React, { useEffect, useState, useRef } from "react";
-import Navbar from "../components/navbar";
-import Instructions from "../components/instructions";
-import { useProgress } from "../components/useProgress";
-import Footer from "../components/footer";
-import { usePathname } from "next/navigation";
-import { useSocket } from "../components/socketContext"; 
-import RatingSlider from "../components/ratingSlider";
-import Popup from "../components/popup";
-import axios from "axios";
-import { useAuth } from "../components/AuthContext";
-import { useProgressManager } from "../components/progress";
-import Facts from "../components/facts";
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import "react-pdf/dist/esm/Page/TextLayer.css";
-import { Document, Page, pdfjs } from "react-pdf";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+export const dynamic = 'force-dynamic';
+import React, { useEffect, useState, useRef } from 'react';
+import Navbar from '../components/navbar';
+import Instructions from '../components/instructions';
+import { useProgress } from '../components/useProgress';
+import Footer from '../components/footer';
+import { usePathname } from 'next/navigation';
+import { useSocket } from '../components/socketContext';
+import RatingSlider from '../components/ratingSlider';
+import Popup from '../components/popup';
+import axios from 'axios';
+import { useAuth } from '../components/AuthContext';
+import { useJobDescription } from '../components/useJobDescription';
+import { useProgressManager } from '../components/progress';
+import { useInterviewProgress } from '../components/useInterviewProgress';
+import Facts from '../components/facts';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+import { Document, Page, pdfjs } from 'react-pdf';
+import { API_BASE_URL } from '../../lib/api';
+import { pdfSource } from '../../lib/pdfSource';
+import { PageLoader, Spinner } from '../components/spinner';
+import { CURVEBALL_COLUMN, NO_SHOW_SCORE, RATING_COLUMN, RATING_LABEL } from '../../lib/ratings';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
+  'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString();
-
-interface User {
-  id: string;
-  group_id: number;
-  email: string;
-  class: number;
-}
 
 interface CandidateInterview {
   resume_id: number;
@@ -39,14 +36,6 @@ interface CandidateInterview {
   first_name: string;
   last_name: string;
   file_path?: string;
-}
-
-interface Interview {
-  id: number;
-  resume_id: number;
-  interview: string;
-  first_name: string; 
-  last_name: string;  
 }
 
 interface Resume {
@@ -59,216 +48,122 @@ type ViewMode = 'video' | 'resume' | 'jobDescription';
 export default function Interview() {
   useProgress();
   const socket = useSocket();
-  const {updateProgress, fetchProgress} = useProgressManager();
+  const { updateProgress } = useProgressManager();
   const { user, loading: userloading } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(true);
   const [popup, setPopup] = useState<{ headline: string; message: string } | null>(null);
   const pathname = usePathname();
-  const [noShow, setNoShow] = useState(false);
   const [donePopup, setDonePopup] = useState(false);
 
-  const [votes, setVotes] = useState<{
-    student_id: string;
-    group_id: number;
-    studentClass: number;
-    question1: number;
-    question2: number;
-    question3: number;
-    question4: number;
-    candidate_id: number;
-  }[]>([]);
-  
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('video');
-  const [jobDescPath, setJobDescPath] = useState("");
+  const jobDescPath = useJobDescription(user).job?.filePath ?? '';
   const [jobDescNumPages, setJobDescNumPages] = useState<number | null>(null);
   const [jobDescPageNumber, setJobDescPageNumber] = useState(1);
   const [resumeNumPages, setResumeNumPages] = useState<number | null>(null);
   const [resumePageNumber, setResumePageNumber] = useState(1);
-  
-  // Rating states
-  const [overall, setOverall] = useState(5); 
-  const [professionalPresence, setProfessionalPresence] = useState(5); 
-  const [qualityOfAnswer, setQualityOfAnswer] = useState(5); 
-  const [personality, setPersonality] = useState(5);
-  
+
   // Video states
-  const [videoIndex, setVideoIndex] = useState(0); 
-  const [fadingEffect, setFadingEffect] = useState(false);
   const [finished, setFinished] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
-  const [currentCandidateId, setCurrentCandidateId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [videosLoading, setVideosLoading] = useState(true);
 
-  const [interviews, setInterviews] = useState<Array<{
-    resume_id: number;
-    title: string;
-    video_path: string;
-    interview: string;
-    first_name: string;  
-    last_name: string;
-    file_path?: string;
-  }>>([]);
-  
+  const [interviews, setInterviews] = useState<
+    Array<{
+      resume_id: number;
+      title: string;
+      video_path: string;
+      interview: string;
+      first_name: string;
+      last_name: string;
+      file_path?: string;
+    }>
+  >([]);
+  const {
+    videoIndex,
+    setVideoIndex,
+    allRated,
+    noShow,
+    setNoShow,
+    overall,
+    setOverall,
+    professionalPresence,
+    setProfessionalPresence,
+    qualityOfAnswer,
+    setQualityOfAnswer,
+    personality,
+    setPersonality,
+    resetRatings,
+    clearSavedProgress,
+  } = useInterviewProgress(user?.id, interviews);
+
   const interviewInstructions = [
     "Watch each candidate's interview video carefully.",
-    "Rate the candidate on Overall, Professional Presence, Quality of Answer, and Personality.",
-    "You can toggle between viewing the interview video, resume, and job description.",
-    "Discuss with your group and submit your ratings for each candidate."
-  ]; 
+    'Rate the candidate on Overall, Professional Presence, Quality of Answer, and Personality.',
+    'You can toggle between viewing the interview video, resume, and job description.',
+    'Discuss with your group and submit your ratings for each candidate.',
+  ];
 
   const hasUpdatedPageRef = useRef(false);
 
-  // Use ref to always have access to current interviews state
-  const interviewsRef = useRef(interviews);
   const [groupSubmissions, setGroupSubmissions] = useState(0);
   const [groupSize, setGroupSize] = useState(0);
   const [groupFinished, setGroupFinished] = useState(false);
 
-  // Fetch job description for the group
-  useEffect(() => {
-    const fetchJobDescription = async () => {
-      if (!user?.group_id || !user?.class) return;
-      
-      try {
-        const assignmentResponse = await fetch(
-          `${API_BASE_URL}/jobs/assignment/${user.group_id}/${user.class}`,
-          { credentials: "include" }
-        );
-        const assignmentData = await assignmentResponse.json();
-        
-        if (assignmentData.job) {
-          const jobResponse = await fetch(
-            `${API_BASE_URL}/jobs/title?title=${encodeURIComponent(assignmentData.job)}&class_id=${user.class}`,
-            { credentials: "include" }
-          );
-          const jobData = await jobResponse.json();
-          if (jobData.file_path) {
-            setJobDescPath(jobData.file_path);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching job description:", error);
-      }
-    };
-
-    fetchJobDescription();
-  }, [user?.group_id, user?.class]);
-
   const fetchFinished = async () => {
-    console.log("🔍 [FETCH-FINISHED] Starting fetchFinished...");
-    console.log("🔍 [FETCH-FINISHED] Current state - groupSubmissions:", groupSubmissions, "groupSize:", groupSize);
-    
     try {
       const response = await axios.get(`${API_BASE_URL}/interview/status/finished-count`, {
         params: { group_id: user?.group_id, class_id: user?.class },
         withCredentials: true,
-      });      
-      
+      });
+
       const newGroupSubmissions = response.data.finishedCount;
       setGroupSubmissions(newGroupSubmissions);
-      setGroupFinished(newGroupSubmissions >= groupSize);
-
+      setGroupFinished(groupSize > 0 && newGroupSubmissions >= groupSize);
     } catch (err) {
-      console.error("❌ [FETCH-FINISHED] Failed to fetch finished count:", err);
+      console.error('Failed to fetch finished count:', err);
     }
   };
 
-  // Add this helper function near the top of your component, after the interfaces
   const getYouTubeEmbedUrl = (url: string) => {
     if (!url) return url;
-    
+
     // Check if it's already an embed URL
     if (url.includes('/embed/')) {
       // Add parameters if not already present
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}rel=0&modestbranding=1&showinfo=0&controls=1`;
     }
-    
+
     return url;
   };
 
   const fetchGroupSize = async () => {
-    console.log("🔍 [FETCH-GROUP-SIZE] Starting fetchGroupSize...");
-    console.log("🔍 [FETCH-GROUP-SIZE] Current groupSize:", groupSize);
-    
     try {
-      const response = await fetch(`${API_BASE_URL}/interview/group-size/${user?.group_id}/${user?.class}`, { credentials: "include" });
-        if (response.ok) {
-          const data = await response.json();
-          console.log("🔍 [FETCH-GROUP-SIZE] Response received - new size:", data.count);
-          setGroupSize(data.count);
-          console.log("🔍 [FETCH-GROUP-SIZE] State updated - groupSize:", data.count);
-        }
+      const response = await fetch(
+        `${API_BASE_URL}/interview/group-size/${user?.group_id}/${user?.class}`,
+        { credentials: 'include' }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setGroupSize(data.count);
+      }
     } catch (err) {
-      console.error("❌ [FETCH-GROUP-SIZE] Failed to fetch group size:", err);
+      console.error('Failed to fetch group size:', err);
     }
   };
-
-  useEffect(() => {
-    const savedVideoIndex = localStorage.getItem('interviewStage_videoIndex');
-    const savedCandidateId = localStorage.getItem('interviewStage_candidateId');
-    const savedOverall = localStorage.getItem('interviewStage_overall');
-    const savedProfessionalPresence = localStorage.getItem('interviewStage_professionalPresence');
-    const savedQualityOfAnswer = localStorage.getItem('interviewStage_qualityOfAnswer');
-    const savedPersonality = localStorage.getItem('interviewStage_personality');
-    const savedNoShow = localStorage.getItem('interviewStage_noShow');
-    
-    if (savedVideoIndex) setVideoIndex(Number(savedVideoIndex));
-    if (savedCandidateId) setCurrentCandidateId(Number(savedCandidateId));
-    if (savedOverall) setOverall(Number(savedOverall));
-    if (savedProfessionalPresence) setProfessionalPresence(Number(savedProfessionalPresence));
-    if (savedQualityOfAnswer) setQualityOfAnswer(Number(savedQualityOfAnswer));
-    if (savedPersonality) setPersonality(Number(savedPersonality));
-    if (savedNoShow) setNoShow(savedNoShow === 'true');
-  }, []);
-
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('interviewStage_videoIndex', String(videoIndex));
-  }, [videoIndex]);
-
-  useEffect(() => {
-    localStorage.setItem('interviewStage_overall', String(overall));
-  }, [overall]);
-
-  useEffect(() => {
-    localStorage.setItem('interviewStage_professionalPresence', String(professionalPresence));
-  }, [professionalPresence]);
-
-  useEffect(() => {
-    localStorage.setItem('interviewStage_qualityOfAnswer', String(qualityOfAnswer));
-  }, [qualityOfAnswer]);
-
-  useEffect(() => {
-    localStorage.setItem('interviewStage_personality', String(personality));
-  }, [personality]);
-
-  useEffect(() => {
-    localStorage.setItem('interviewStage_noShow', String(noShow));
-  }, [noShow]);
 
   // Clear state when finished
   useEffect(() => {
     if (finished) {
-      localStorage.removeItem('interviewStage_videoIndex');
-      localStorage.removeItem('interviewStage_candidateId');
-      localStorage.removeItem('interviewStage_overall');
-      localStorage.removeItem('interviewStage_professionalPresence');
-      localStorage.removeItem('interviewStage_qualityOfAnswer');
-      localStorage.removeItem('interviewStage_personality');
-      localStorage.removeItem('interviewStage_noShow');
+      clearSavedProgress();
     }
-  }, [finished]);
+  }, [finished, clearSavedProgress]);
 
   useEffect(() => {
-    console.log("Interviews updated:", interviews);
-  }, [interviews]);
-  
-  useEffect(() => {
     const handleShowInstructions = () => {
-      console.log("Help button clicked - showing instructions");
       setShowInstructions(true);
     };
 
@@ -278,11 +173,6 @@ export default function Interview() {
       window.removeEventListener('showInstructions', handleShowInstructions);
     };
   }, []);
-
-  // Update ref whenever interviews change
-  useEffect(() => {
-    interviewsRef.current = interviews;
-  }, [interviews]);
 
   // Reset video loaded state when video changes
   useEffect(() => {
@@ -298,59 +188,20 @@ export default function Interview() {
     }
   }, [finished]);
 
-  // Send interview ratings to backend (add to queue)
-  const sendResponseToBackend = (
-    overall: number,
-    professionalPresence: number,
-    qualityOfAnswer: number,
-    personality: number,
-    candidate_id: number
-  ) => {
-    console.log("🗳️ [INTERVIEW-VOTE] Adding vote to queue");
-    
-    if (!user || !user.id || !user.group_id) {
-      console.error("❌ [INTERVIEW-VOTE] Student ID or Group ID not found");
-      return;
-    }
-    
-    const voteData: {
-      student_id: string;
-      group_id: number;
-      studentClass: number;
-      question1: number;
-      question2: number;
-      question3: number;
-      question4: number;
-      candidate_id: number;
-    } = {
-      student_id: String(user.id),
-      group_id: user.group_id,
-      studentClass: user.class,
-      question1: overall,
-      question2: professionalPresence,
-      question3: qualityOfAnswer,
-      question4: personality,
-      candidate_id
-    };
-    
-    console.log("🗳️ [INTERVIEW-VOTE] Adding vote to array:", voteData);
-    setVotes(prev => [...prev, voteData]);
-  };
-
   useEffect(() => {
     if (!user?.group_id) return;
-    
+
     const fetchCandidates = async () => {
       setVideosLoading(true);
-      
+
       try {
         const resumeResponse = await axios.get(
-          `${API_BASE_URL}/resume/group/${user.group_id}?class=${user.class}`, 
+          `${API_BASE_URL}/resume/group/${user.group_id}?class=${user.class}`,
           { withCredentials: true, timeout: 8000 }
         );
-        
+
         const allResumes: Resume[] = resumeResponse.data;
-        
+
         const checkedResumes = allResumes
           .filter((resume: Resume) => resume.checked === 1)
           .reduce<Resume[]>((unique, resume) => {
@@ -359,152 +210,139 @@ export default function Interview() {
             }
             return unique;
           }, []);
-        
+
         if (checkedResumes.length === 0) {
           setInterviews([]);
           setVideosLoading(false);
           return;
         }
-        
-        const candidatePromises = checkedResumes.map(resume => 
-            axios.get(`${API_BASE_URL}/candidates/resume-with-file/${resume.resume_number}`, {            timeout: 8000, 
-            withCredentials: true,
-          })
-          .then(response => {
-            console.log(`Raw response for resume ${resume.resume_number}:`, response.data);
-            
-            const candidateData: CandidateInterview = {
-              resume_id: response.data.resume_id,
-              title: response.data.title || `Candidate ${response.data.resume_id}`,
-              interview: response.data.interview,
-              video_path: response.data.interview,
-              first_name: response.data.f_name,
-              last_name: response.data.l_name,
-              file_path: response.data.file_path,
-            };
-            
-            console.log(`Formatted candidate data for resume ${resume.resume_number}:`, candidateData);
-            return candidateData;
-          })
-          .catch(err => {
-            console.error(`Error fetching candidate for resume ${resume.resume_number}:`, err);
-            return null;
-          })
+
+        const candidatePromises = checkedResumes.map((resume) =>
+          axios
+            .get(`${API_BASE_URL}/candidates/resume-with-file/${resume.resume_number}`, {
+              timeout: 8000,
+              withCredentials: true,
+            })
+            .then((response) => {
+              const candidateData: CandidateInterview = {
+                resume_id: response.data.resume_id,
+                title: response.data.title || `Candidate ${response.data.resume_id}`,
+                interview: response.data.interview,
+                video_path: response.data.interview,
+                first_name: response.data.f_name,
+                last_name: response.data.l_name,
+                file_path: response.data.file_path,
+              };
+
+              return candidateData;
+            })
+            .catch((err) => {
+              console.error(`Error fetching candidate for resume ${resume.resume_number}:`, err);
+              return null;
+            })
         );
 
         const results = await Promise.allSettled(candidatePromises);
-        console.log("Promise.allSettled results:", results);
 
-        results.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            console.log(`Result ${index} (fulfilled):`, result.value);
-          } else {
-            console.log(`Result ${index} (rejected):`, result.reason);
-          }
-        });
-
-      const finalInterviews = results
-        .map(result => (result.status === 'fulfilled' && result.value !== null) ? result.value : null)
-        .filter((item): item is CandidateInterview => item !== null)
-        .slice(0,4);
+        const finalInterviews = results
+          .map((result) =>
+            result.status === 'fulfilled' && result.value !== null ? result.value : null
+          )
+          .filter((item): item is CandidateInterview => item !== null)
+          .slice(0, 4);
 
         setInterviews(finalInterviews);
-        console.log("Final interviews array:", finalInterviews);
-        
       } catch (err) {
-        console.error("Error fetching interviews:", err);
+        console.error('Error fetching interviews:', err);
         setError('Failed to load interview data. Please try refreshing the page.');
       } finally {
         setVideosLoading(false);
       }
     };
-    
+
     fetchCandidates();
   }, [user]);
 
   const currentVid = interviews[videoIndex];
-
-  // Save candidate ID whenever video changes
-  useEffect(() => {
-    if (currentVid) {
-      setCurrentCandidateId(currentVid.resume_id);
-      localStorage.setItem('interviewStage_candidateId', String(currentVid.resume_id));
-    }
-  }, [currentVid]);
-
-  // Verify ratings match current candidate after interviews load
-  useEffect(() => {
-    if (interviews.length > 0 && currentCandidateId !== null) {
-      const currentVideoCandidate = interviews[videoIndex]?.resume_id;
-      
-      if (currentVideoCandidate !== currentCandidateId) {
-        console.log('Candidate mismatch after refresh, resetting ratings');
-        resetRatings();
-        setNoShow(false);
-        setCurrentCandidateId(currentVideoCandidate);
-        localStorage.setItem('interviewStage_candidateId', String(currentVideoCandidate));
-      }
-    }
-  }, [interviews, videoIndex, currentCandidateId]);
 
   useEffect(() => {
     if (!socket || !user) return;
 
     fetchGroupSize();
     fetchFinished();
-  }, [socket, user]); 
-  
-
+  }, [socket, user]);
 
   useEffect(() => {
     if (!socket || !user || !finished) return;
 
-    socket.emit("interviewStageFinished", {
+    socket.emit('interviewStageFinished', {
       group_id: user.group_id,
       class_id: user.class,
       student_id: user.id,
     });
-  }, [finished, socket, user]);  
-
+  }, [finished, socket, user]);
 
   useEffect(() => {
     if (!socket || !user?.email) return;
-    
+
     const roomId = `group_${user.group_id}_class_${user.class}`;
-    socket.emit("joinGroup", roomId);
-    
-    socket.emit("studentOnline", { studentId: user.email }); 
-    socket.emit("studentPageChanged", { studentId: user.email, currentPage: pathname });
-    
-    const handleMoveGroup = ({ groupId, classId, targetPage }: { groupId: number; classId: number; targetPage: string }) => {
-      if (user && groupId === user.group_id && classId === user.class && targetPage === "/makeOffer") {
-        updateProgress(user, "offer");
-        localStorage.setItem("progress", "offer");
-        window.location.href = targetPage; 
+    socket.emit('joinGroup', roomId);
+
+    socket.emit('studentOnline', { studentId: user.email });
+    socket.emit('studentPageChanged', { studentId: user.email, currentPage: pathname });
+
+    const handleMoveGroup = async ({
+      groupId,
+      classId,
+      targetPage,
+    }: {
+      groupId: number;
+      classId: number;
+      targetPage: string;
+    }) => {
+      if (
+        user &&
+        groupId === user.group_id &&
+        classId === user.class &&
+        targetPage === '/makeOffer'
+      ) {
+        // Wait for the write so POST /offers sees the offer step. Navigate
+        // even if it failed so the student is not stranded.
+        try {
+          await updateProgress(user, 'offer');
+        } catch (err) {
+          console.error('Error updating progress while moving group:', err);
+        }
+        localStorage.setItem('progress', 'offer');
+        window.location.href = targetPage;
       }
     };
 
-    socket.on("moveGroup", handleMoveGroup);
+    socket.on('moveGroup', handleMoveGroup);
 
     // Only update the database once per page visit
     if (!hasUpdatedPageRef.current) {
       const updateCurrentPage = async () => {
         try {
-          await axios.post(`${API_BASE_URL}/users/update-currentpage`, {
-            page: 'interviewpage', 
-            user_email: user.email
-          }, { withCredentials: true });
-          hasUpdatedPageRef.current = true; // Mark as updated
+          await axios.post(
+            `${API_BASE_URL}/users/update-currentpage`,
+            {
+              page: 'interviewpage',
+              user_email: user.email,
+            },
+            { withCredentials: true }
+          );
+          hasUpdatedPageRef.current = true;
         } catch (error) {
-          console.error("Error updating current page:", error);
+          console.error('Error updating current page:', error);
         }
       };
-      
+
       updateCurrentPage();
     }
-    
+
     return () => {
-      socket.off("moveGroup", handleMoveGroup);
+      socket.off('moveGroup', handleMoveGroup);
     };
   }, [socket, user?.email, pathname, updateProgress]);
 
@@ -518,7 +356,9 @@ export default function Interview() {
     const handleInterviewStatusUpdated = ({ count, total }: { count: number; total: number }) => {
       setGroupSubmissions(count);
       setGroupSize(total);
-      setGroupFinished(count === total);
+      // >= rather than ===: a member who leaves mid-step drops the total under
+      // a count that already included them, and === then never matches.
+      setGroupFinished(total > 0 && count >= total);
     };
 
     const handleInterviewStageFinished = () => {
@@ -528,264 +368,221 @@ export default function Interview() {
 
     const handleStudentRemoved = ({ groupId, classId }: { groupId: number; classId: number }) => {
       if (user && groupId === user.group_id && classId == user.class) {
-        console.log("📡 [STUDENT-REMOVED] Event received - groupId:", groupId, "classId:", classId);
-        console.log("📡 [STUDENT-REMOVED] Current state - finished:", finished, "groupSize:", groupSize, "groupSubmissions:", groupSubmissions);
-        console.log("📡 [STUDENT-REMOVED] Refreshing group size and finished count...");
-        
         fetchGroupSize();
         fetchFinished();
-        
-        console.log("📡 [STUDENT-REMOVED] Fetch calls completed");
-      } else {
-        console.log("📡 [STUDENT-REMOVED] Event ignored - not for this group/class");
       }
     };
 
-    // Update  (around line 528-538)
     const handleStudentAdded = ({ groupId, classId }: { groupId: number; classId: number }) => {
       if (user && groupId === user.group_id && classId == user.class) {
-        console.log("📡 [STUDENT-ADDED] Event received - groupId:", groupId, "classId:", classId);
-        console.log("📡 [STUDENT-ADDED] Current state - finished:", finished, "groupSize:", groupSize, "groupSubmissions:", groupSubmissions);
-        console.log("📡 [STUDENT-ADDED] Refreshing group size and finished count...");
         fetchGroupSize();
         fetchFinished();
-        
-        console.log("📡 [STUDENT-ADDED] Fetch calls completed");
-      } else {
-        console.log("📡 [STUDENT-ADDED] Event ignored - not for this group/class");
       }
     };
 
-    socket.on("receivePopup", handleReceivePopup);
-    socket.on("studentAddedToGroup", handleStudentAdded);
-    socket.on("interviewStatusUpdated", handleInterviewStatusUpdated);
-    socket.on("interviewStageFinished", handleInterviewStageFinished);
-    socket.on("studentRemovedFromGroup", handleStudentRemoved);
-    
+    socket.on('receivePopup', handleReceivePopup);
+    socket.on('studentAddedToGroup', handleStudentAdded);
+    socket.on('interviewStatusUpdated', handleInterviewStatusUpdated);
+    socket.on('interviewStageFinished', handleInterviewStageFinished);
+    socket.on('studentRemovedFromGroup', handleStudentRemoved);
+
     return () => {
-      socket.off("receivePopup", handleReceivePopup);
-      socket.off("studentAddedToGroup", handleStudentAdded);
-      socket.off("interviewStatusUpdated", handleInterviewStatusUpdated);
-      socket.off("interviewStageFinished", handleInterviewStageFinished);
-      socket.off("studentRemovedFromGroup", handleStudentRemoved);
+      socket.off('receivePopup', handleReceivePopup);
+      socket.off('studentAddedToGroup', handleStudentAdded);
+      socket.off('interviewStatusUpdated', handleInterviewStatusUpdated);
+      socket.off('interviewStageFinished', handleInterviewStageFinished);
+      socket.off('studentRemovedFromGroup', handleStudentRemoved);
     };
   }, [socket, user]);
 
   // Reset group finished state when group size changes
   useEffect(() => {
     if (groupSize > 0) {
-      console.log("📊 [GROUP-SIZE-CHANGE] Group size changed to:", groupSize);
-      console.log("📊 [GROUP-SIZE-CHANGE] Current groupSubmissions:", groupSubmissions);
-      
       // If group size increased and we were finished, reset
       if (groupFinished && groupSubmissions < groupSize) {
-        console.log("📊 [GROUP-SIZE-CHANGE] Resetting groupFinished - group size increased");
         setGroupFinished(false);
       }
     }
   }, [groupSize]);
 
-    // Auto-complete if group size changes and all remaining members are done
+  // Auto-complete if group size changes and all remaining members are done
   useEffect(() => {
-    console.log("🔄 [AUTO-PROGRESS] useEffect triggered");
-    console.log("🔄 [AUTO-PROGRESS] Dependencies - finished:", finished, "groupSize:", groupSize, "groupSubmissions:", groupSubmissions);
-    console.log("🔄 [AUTO-PROGRESS] Condition check - finished && groupSize > 0 && groupSubmissions >= groupSize:", 
-      finished && groupSize > 0 && groupSubmissions >= groupSize);
-    
     if (finished && groupSize > 0 && groupSubmissions >= groupSize) {
-      console.log("✅ [AUTO-PROGRESS] All conditions met - enabling progression");
       setGroupFinished(true);
-    } else {
-      console.log("⏸️ [AUTO-PROGRESS] Conditions not met - waiting");
-      if (!finished) console.log("   - User has not finished yet");
-      if (groupSize <= 0) console.log("   - Group size is 0 or invalid");
-      if (groupSubmissions < groupSize) console.log(`   - Waiting for more submissions (${groupSubmissions}/${groupSize})`);
     }
   }, [groupSize, groupSubmissions, finished]);
 
-
   useEffect(() => {
-    if (!socket || !user || !currentVid) {
-      console.log("Missing user or currentVid, not setting up socket listeners", user, currentVid);
-      return;
-    }
+    if (!socket || !user || !currentVid) return;
 
-    console.log("Setting up socket listeners with user:", user.id, "and currentVid:", currentVid.resume_id);
-
-    const handleUpdateRatingsWithPreset = ({ classId, groupId, vote, isNoShow, candidateId }: {
+    const handleUpdateRatingsWithPreset = ({
+      classId,
+      groupId,
+      vote,
+      isNoShow,
+      candidateId,
+    }: {
       classId: number;
       groupId: number;
-      vote: { professionalPresence?: number; qualityOfAnswer?: number; personality?: number; overall?: number };
+      vote: {
+        professionalPresence?: number;
+        qualityOfAnswer?: number;
+        personality?: number;
+        overall?: number;
+      };
       isNoShow: boolean;
       candidateId: number;
     }) => {
-      console.log("Received updateRatingsWithPreset event", { classId, groupId, vote, isNoShow, candidateId });
-      
       const voteData = {
         student_id: user.id,
         group_id: groupId,
         class: classId,
-        question1: isNoShow ? -10000 : (vote.professionalPresence || 0),
-        question2: isNoShow ? -10000 : (vote.qualityOfAnswer || 0),
-        question3: isNoShow ? -10000 : (vote.personality || 0),
-        question4: isNoShow ? -10000 : (vote.overall || 0),
-        candidate_id: candidateId
+        [CURVEBALL_COLUMN.overall]: isNoShow ? NO_SHOW_SCORE : vote.overall || 0,
+        [CURVEBALL_COLUMN.professionalPresence]: isNoShow
+          ? NO_SHOW_SCORE
+          : vote.professionalPresence || 0,
+        [CURVEBALL_COLUMN.qualityOfAnswer]: isNoShow ? NO_SHOW_SCORE : vote.qualityOfAnswer || 0,
+        [CURVEBALL_COLUMN.personality]: isNoShow ? NO_SHOW_SCORE : vote.personality || 0,
+        candidate_id: candidateId,
       };
-      
-      console.log("Emitting sentPresetVotes with data:", voteData);
-      socket.emit("sentPresetVotes", voteData);
+
+      socket.emit('sentPresetVotes', voteData);
     };
 
-    socket.on("updateRatingsWithPresetFrontend", handleUpdateRatingsWithPreset);
+    socket.on('updateRatingsWithPresetFrontend', handleUpdateRatingsWithPreset);
 
     return () => {
-      console.log("Cleaning up socket listeners");
-      socket.off("updateRatingsWithPresetFrontend", handleUpdateRatingsWithPreset);
+      socket.off('updateRatingsWithPresetFrontend', handleUpdateRatingsWithPreset);
     };
   }, [socket, user, currentVid]);
 
   const completeInterview = async () => {
     if (!socket || !user) return;
-    
+
     // Votes are already submitted when the last interview was submitted
     // Just update progress and navigate
-    await updateProgress(user, "offer");  // ✅ Await the database update
-    localStorage.setItem("progress", "offer");
-    localStorage.removeItem('interviewStage_videoIndex');
-    localStorage.removeItem('interviewStage_candidateId');
-    localStorage.removeItem('interviewStage_overall');
-    localStorage.removeItem('interviewStage_professionalPresence');
-    localStorage.removeItem('interviewStage_qualityOfAnswer');
-    localStorage.removeItem('interviewStage_personality');
-    localStorage.removeItem('interviewStage_noShow');
+    await updateProgress(user, 'offer');
+    localStorage.setItem('progress', 'offer');
+    clearSavedProgress();
     window.location.href = '/makeOffer';
-    socket.emit("moveGroup", { groupId: user.group_id, classId: user.class, targetPage: "/makeOffer" });
+    socket.emit('moveGroup', {
+      groupId: user.group_id,
+      classId: user.class,
+      targetPage: '/makeOffer',
+    });
   };
 
   // Rating change handlers
   const handleOverallSliderChange = (value: number) => {
     setOverall(value);
-  }
-  
+  };
+
   const handleProfessionalPresenceSliderChange = (value: number) => {
     setProfessionalPresence(value);
-  }
-  
+  };
+
   const handleQualityOfAnswerSliderChange = (value: number) => {
     setQualityOfAnswer(value);
-  }
-  
+  };
+
   const handlePersonalitySliderChange = (value: number) => {
     setPersonality(value);
-  }
-  
-  // Reset all ratings
-  const resetRatings = () => {
-    setOverall(5); 
-    setProfessionalPresence(5); 
-    setQualityOfAnswer(5); 
-    setPersonality(5); 
-  }
+  };
 
   const handleSubmit = async () => {
     if (!currentVid) {
-      console.error("No current video selected");
+      console.error('No current video selected');
       return;
     }
 
     if (!videoLoaded) {
-      console.warn("Video not fully loaded yet, cannot submit");
+      console.warn('Video not fully loaded yet, cannot submit');
       return;
     }
 
-    // Add current vote to the queue
-    let updatedVotes;
-    if (noShow) {
-      const voteData = {
-        student_id: String(user!.id),
-        group_id: user!.group_id,
-        studentClass: user!.class,
-        question1: 1,
-        question2: 1,
-        question3: 1,
-        question4: 1,
-        candidate_id: currentVid.resume_id
-      };
-      updatedVotes = [...votes, voteData];
-      setVotes(updatedVotes);
-    } else {
-      const voteData = {
-        student_id: String(user!.id),
-        group_id: user!.group_id,
-        studentClass: user!.class,
-        question1: overall,
-        question2: professionalPresence,
-        question3: qualityOfAnswer,
-        question4: personality,
-        candidate_id: currentVid.resume_id
-      };
-      updatedVotes = [...votes, voteData];
-      setVotes(updatedVotes);
+    if (submitting) return;
+    setSubmitting(true);
+
+    const voteData = noShow
+      ? {
+          question1: 1,
+          question2: 1,
+          question3: 1,
+          question4: 1,
+          candidate_id: currentVid.resume_id,
+        }
+      : {
+          [RATING_COLUMN.overall]: overall,
+          [RATING_COLUMN.professionalPresence]: professionalPresence,
+          [RATING_COLUMN.qualityOfAnswer]: qualityOfAnswer,
+          [RATING_COLUMN.personality]: personality,
+          candidate_id: currentVid.resume_id,
+        };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/interview/batch-vote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ votes: [voteData] }),
+      });
+      if (!res.ok) throw new Error(`Saving the rating failed with ${res.status}`);
+    } catch (err) {
+      console.error('Error saving interview vote:', err);
+      setPopup({
+        headline: 'Error Saving Ratings',
+        message: 'Failed to save your interview ratings. Please try again.',
+      });
+      setSubmitting(false);
+      return;
     }
 
     const nextVideoIndex = videoIndex + 1;
     const isLastInterview = nextVideoIndex >= interviews.length;
 
     if (!isLastInterview) {
-      // Not the last interview - just move to next video
       setVideoIndex(nextVideoIndex);
-      setVideoLoaded(false); 
+      setVideoLoaded(false);
       resetRatings();
       setNoShow(false);
     } else {
-      // This is the last interview - submit all votes to database
-      console.log(`📤 [BATCH-INTERVIEW-VOTE] Last interview submitted - sending ${updatedVotes.length} votes to backend`);
-      
-      try {
-        const response = await axios.post(`${API_BASE_URL}/interview/batch-vote`, {
-          votes: updatedVotes
-        }, { withCredentials: true });
+      await markFinished();
+    }
 
-        if (response.status !== 200) {
-          console.error("❌ [BATCH-INTERVIEW-VOTE] Error response from backend");
-          throw new Error("Failed to save interview votes");
-        }
-        
-        console.log("✅ [BATCH-INTERVIEW-VOTE] All interview votes saved successfully:", response.data);
-        
-        // Mark as finished in the database
-        await axios.post(`${API_BASE_URL}/interview/status/finished`, {
-          student_id: user?.id,
-          finished: 1,
-          group_id: user?.group_id,
-          class: user?.class
-        }, {
-          withCredentials: true,
-        });
-        
-        setFinished(true);
-      } catch (err) {
-        console.error("❌ [BATCH-INTERVIEW-VOTE] Error saving votes:", err);
-        setPopup({
-          headline: "Error Saving Ratings",
-          message: "Failed to save your interview ratings. Please try again."
-        });
-      }
+    setSubmitting(false);
+  };
+
+  const markFinished = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/interview/status/finished`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finished: 1 }),
+      });
+      if (!res.ok) throw new Error(`Marking interviews finished failed with ${res.status}`);
+
+      setFinished(true);
+    } catch (err) {
+      console.error('Error marking interviews finished:', err);
+      setPopup({
+        headline: 'Error Saving Ratings',
+        message:
+          'Your ratings are saved, but marking you finished failed. Refresh the page to try again.',
+      });
     }
   };
-  
+
+  // Every candidate is already rated, e.g. after a refresh once finished.
+  useEffect(() => {
+    if (allRated && !finished) markFinished();
+  }, [allRated, finished]);
+
   // Loading state
-   if (userloading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-sand">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Loading...</h2>
-          <div className="w-16 h-16 border-t-4 border-navy border-solid rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-    );
-  }  
-  
+  if (userloading) {
+    return <PageLoader />;
+  }
+
   // Error state
   if (error) {
     return (
@@ -794,8 +591,8 @@ export default function Interview() {
           <h2 className="text-xl font-bold mb-2">Error</h2>
           <p>{error}</p>
           <p className="mt-2">Please try refreshing the page or return to the dashboard.</p>
-          <button 
-            onClick={() => window.location.href = '/dashboard'}
+          <button
+            onClick={() => (window.location.href = '/dashboard')}
             className="mt-4 bg-redHeader text-white px-4 py-2 rounded hover:bg-navy transition"
           >
             Return to Dashboard
@@ -812,8 +609,8 @@ export default function Interview() {
         <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded max-w-md">
           <h2 className="text-xl font-bold mb-2">Authentication Required</h2>
           <p>Please log in to access this page.</p>
-          <button 
-            onClick={() => window.location.href = '/'}
+          <button
+            onClick={() => (window.location.href = '/')}
             className="mt-4 bg-redHeader text-white px-4 py-2 rounded hover:bg-navy transition"
           >
             Go to Login
@@ -833,7 +630,9 @@ export default function Interview() {
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-20 h-20 border-t-4 border-redHeader border-solid rounded-full animate-spin mb-6"></div>
               <p className="text-lg font-semibold text-navy mb-2">Loading Interview Videos...</p>
-              <p className="text-sm text-gray-600">Please wait while we fetch the candidate interviews</p>
+              <p className="text-sm text-gray-600">
+                Please wait while we fetch the candidate interviews
+              </p>
             </div>
           </div>
         </div>
@@ -856,13 +655,13 @@ export default function Interview() {
             </div>
             <div className="flex justify-between">
               <button
-                onClick={() => window.location.href = "/res-review-group"}
+                onClick={() => (window.location.href = '/res-review-group')}
                 className="px-4 py-2 bg-redHeader text-white rounded-lg shadow-md hover:bg-navy transition duration-300 font-rubik"
               >
                 ← Go to Resume Review Group
               </button>
               <button
-                onClick={() => window.location.href = "/dashboard"}
+                onClick={() => (window.location.href = '/dashboard')}
                 className="px-4 py-2 bg-redHeader text-white rounded-lg shadow-md hover:bg-navy transition duration-300 font-rubik"
               >
                 Return to Dashboard
@@ -875,11 +674,10 @@ export default function Interview() {
     );
   }
 
-
   return (
     <div className="h-screen flex flex-col bg-sand font-rubik overflow-hidden">
       {showInstructions && (
-        <Instructions 
+        <Instructions
           instructions={interviewInstructions}
           onDismiss={() => setShowInstructions(false)}
           title="Interview Instructions"
@@ -887,17 +685,18 @@ export default function Interview() {
         />
       )}
       <Navbar />
-      
+
       <div className="flex justify-center items-center font-rubik text-redHeader text-xl font-bold py-1">
         Interview Page
       </div>
 
       <div className="flex-1 flex overflow-hidden px-4 pb-2 gap-4">
         {/* Evaluation panel - no scroll needed */}
-        <div key={videoIndex} className="w-1/3 bg-blue-50 shadow-lg p-3 flex flex-col rounded-lg overflow-hidden">
-          <h1 className="text-lg text-redHeader font-bold mb-1">
-            Evaluation
-          </h1>
+        <div
+          key={videoIndex}
+          className="w-1/3 bg-blue-50 shadow-lg p-3 flex flex-col rounded-lg overflow-hidden"
+        >
+          <h1 className="text-lg text-redHeader font-bold mb-1">Evaluation</h1>
           <h3 className="text-xs text-navy text-center mb-2">
             Watch the interview and rate on a scale from 1-10. Submit to move to the next interview.
           </h3>
@@ -906,8 +705,8 @@ export default function Interview() {
           <div className="flex flex-col gap-1 w-full mb-2">
             <button
               className={`px-2 py-1 rounded-lg shadow-md transition duration-300 font-rubik text-xs ${
-                viewMode === 'video' 
-                  ? 'bg-redHeader text-white' 
+                viewMode === 'video'
+                  ? 'bg-redHeader text-white'
                   : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
               }`}
               onClick={() => {
@@ -919,8 +718,8 @@ export default function Interview() {
             </button>
             <button
               className={`px-2 py-1 rounded-lg shadow-md transition duration-300 font-rubik text-xs ${
-                viewMode === 'resume' 
-                  ? 'bg-redHeader text-white' 
+                viewMode === 'resume'
+                  ? 'bg-redHeader text-white'
                   : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
               }`}
               onClick={() => {
@@ -932,8 +731,8 @@ export default function Interview() {
             </button>
             <button
               className={`px-2 py-1 rounded-lg shadow-md transition duration-300 font-rubik text-xs ${
-                viewMode === 'jobDescription' 
-                  ? 'bg-redHeader text-white' 
+                viewMode === 'jobDescription'
+                  ? 'bg-redHeader text-white'
                   : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
               }`}
               onClick={() => {
@@ -950,7 +749,7 @@ export default function Interview() {
             <div className="flex items-center justify-between bg-navy p-1 rounded-lg w-full mb-2">
               <button
                 className="px-2 py-0.5 bg-sand text-navy rounded disabled:opacity-50 text-xs"
-                onClick={() => setResumePageNumber(prev => Math.max(1, prev - 1))}
+                onClick={() => setResumePageNumber((prev) => Math.max(1, prev - 1))}
                 disabled={resumePageNumber <= 1}
               >
                 ←
@@ -960,7 +759,7 @@ export default function Interview() {
               </span>
               <button
                 className="px-2 py-0.5 bg-sand text-navy rounded disabled:opacity-50 text-xs"
-                onClick={() => setResumePageNumber(prev => Math.min(resumeNumPages, prev + 1))}
+                onClick={() => setResumePageNumber((prev) => Math.min(resumeNumPages, prev + 1))}
                 disabled={resumePageNumber >= resumeNumPages}
               >
                 →
@@ -973,7 +772,7 @@ export default function Interview() {
             <div className="flex items-center justify-between bg-navy p-1 rounded-lg w-full mb-2">
               <button
                 className="px-2 py-0.5 bg-sand text-navy rounded disabled:opacity-50 text-xs"
-                onClick={() => setJobDescPageNumber(prev => Math.max(1, prev - 1))}
+                onClick={() => setJobDescPageNumber((prev) => Math.max(1, prev - 1))}
                 disabled={jobDescPageNumber <= 1}
               >
                 ←
@@ -983,7 +782,7 @@ export default function Interview() {
               </span>
               <button
                 className="px-2 py-0.5 bg-sand text-navy rounded disabled:opacity-50 text-xs"
-                onClick={() => setJobDescPageNumber(prev => Math.min(jobDescNumPages, prev + 1))}
+                onClick={() => setJobDescPageNumber((prev) => Math.min(jobDescNumPages, prev + 1))}
                 disabled={jobDescPageNumber >= jobDescNumPages}
               >
                 →
@@ -995,28 +794,31 @@ export default function Interview() {
           <div className="flex-1 flex flex-col justify-around">
             <div className="flex flex-col items-center text-center w-full">
               <h2 className="text-xs text-redHeader font-semibold mb-0.5">
-                Overall
+                {RATING_LABEL.overall}
               </h2>
               <RatingSlider onChange={handleOverallSliderChange} value={overall} />
             </div>
 
             <div className="flex flex-col items-center text-center w-full">
               <h2 className="text-xs text-redHeader font-semibold mb-0.5">
-                Professional Presence
+                {RATING_LABEL.professionalPresence}
               </h2>
-              <RatingSlider onChange={handleProfessionalPresenceSliderChange} value={professionalPresence} />
+              <RatingSlider
+                onChange={handleProfessionalPresenceSliderChange}
+                value={professionalPresence}
+              />
             </div>
 
             <div className="flex flex-col items-center text-center w-full">
               <h2 className="text-xs text-redHeader font-semibold mb-0.5">
-                Quality of Answer
+                {RATING_LABEL.qualityOfAnswer}
               </h2>
               <RatingSlider onChange={handleQualityOfAnswerSliderChange} value={qualityOfAnswer} />
             </div>
 
             <div className="flex flex-col items-center text-center w-full">
               <h2 className="text-xs text-redHeader font-semibold mb-0.5">
-                Personality & Creativeness
+                {RATING_LABEL.personality}
               </h2>
               <RatingSlider onChange={handlePersonalitySliderChange} value={personality} />
             </div>
@@ -1025,39 +827,38 @@ export default function Interview() {
           {/* Submit button */}
           <button
             onClick={handleSubmit}
-            disabled={finished || !videoLoaded}
+            disabled={finished || !videoLoaded || submitting}
             className={`px-3 py-2 rounded-lg shadow-md transition duration-300 font-rubik text-xs mt-2 ${
-              finished || !videoLoaded
-                ? "bg-gray-400 text-white opacity-50 cursor-not-allowed"
-                : "bg-blue-500 text-white hover:bg-blue-900"
+              finished || !videoLoaded || submitting
+                ? 'bg-gray-400 text-white opacity-50 cursor-not-allowed'
+                : 'bg-blue-500 text-white hover:bg-blue-900'
             }`}
           >
-            {!videoLoaded ? "Loading..." : "Submit Response"}
+            {!videoLoaded ? 'Loading...' : 'Submit Response'}
           </button>
-          
+
           {/* Video progress indicator */}
           <div className="mt-1 text-xs text-gray-700 text-center">
-            {interviews.length > 0 ? 
-              `Video ${Math.min(videoIndex + 1, interviews.length)} of ${interviews.length}` : 
-              "Loading..."}
+            {interviews.length > 0
+              ? `Video ${Math.min(videoIndex + 1, interviews.length)} of ${interviews.length}`
+              : 'Loading...'}
           </div>
         </div>
 
         {/* Content display - video, resume, or job description */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <h1 className="text-lg font-rubik font-bold mb-2 text-center">
-            {noShow ? "Candidate No-Show" : 
-            currentVid && currentVid.first_name && currentVid.last_name ? 
-            `Evaluating ${currentVid.first_name} ${currentVid.last_name}` : 
-            "Evaluation"}
+            {noShow
+              ? 'Candidate No-Show'
+              : currentVid && currentVid.first_name && currentVid.last_name
+                ? `Evaluating ${currentVid.first_name} ${currentVid.last_name}`
+                : 'Evaluation'}
           </h1>
           <div className="flex-1 border-4 border-redHeader rounded-lg shadow-lg overflow-hidden bg-white">
-            {viewMode === 'video' && (
-              noShow ? (
+            {viewMode === 'video' &&
+              (noShow ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-xl font-bold">
-                    This candidate did not show up.
-                  </p>
+                  <p className="text-xl font-bold">This candidate did not show up.</p>
                 </div>
               ) : currentVid && currentVid.interview ? (
                 <iframe
@@ -1077,21 +878,17 @@ export default function Interview() {
                 <div className="flex items-center justify-center h-full bg-gray-100">
                   <p className="text-gray-500">Loading Interview Video...</p>
                 </div>
-              )
-            )}
+              ))}
 
             {viewMode === 'resume' && (
               <div className="h-full w-full overflow-auto flex justify-center items-start bg-gray-100">
                 {currentVid?.file_path ? (
                   <Document
-                    file={`${API_BASE_URL}/${currentVid.file_path}`}
+                    file={pdfSource(`${API_BASE_URL}/${currentVid.file_path}`)}
                     onLoadError={(error) => {
-                      console.error("Resume PDF load error:", error);
-                      console.log("Attempted path:", `${API_BASE_URL}/${currentVid.file_path}`);
-                      console.log("Current candidate data:", currentVid);
+                      console.error('Resume PDF load error:', error);
                     }}
                     onLoadSuccess={({ numPages }) => {
-                      console.log("Resume loaded successfully with", numPages, "pages");
                       setResumeNumPages(numPages);
                     }}
                     loading={
@@ -1110,7 +907,6 @@ export default function Interview() {
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full">
                     <p className="text-gray-500 mb-2">Resume not available</p>
-                    <p className="text-xs text-gray-400">File path: {currentVid?.file_path || 'undefined'}</p>
                   </div>
                 )}
               </div>
@@ -1120,10 +916,9 @@ export default function Interview() {
               <div className="h-full w-full overflow-auto flex justify-center items-start bg-gray-100">
                 {jobDescPath ? (
                   <Document
-                    file={`${API_BASE_URL}/${jobDescPath}`}
+                    file={pdfSource(`${API_BASE_URL}/${jobDescPath}`)}
                     onLoadError={console.error}
                     onLoadSuccess={({ numPages }) => {
-                      console.log("Job description loaded with", numPages, "pages");
                       setJobDescNumPages(numPages);
                     }}
                     loading={
@@ -1153,7 +948,7 @@ export default function Interview() {
       {/* Navigation footer - compact */}
       <div className="flex justify-between px-4 py-1">
         <button
-          onClick={() => (window.location.href = "/res-review-group")}
+          onClick={() => (window.location.href = '/res-review-group')}
           className="px-3 py-1.5 bg-redHeader text-white rounded-lg shadow-md cursor-not-allowed opacity-50 transition duration-300 font-rubik text-xs"
           disabled={true}
         >
@@ -1162,17 +957,18 @@ export default function Interview() {
         <button
           onClick={completeInterview}
           className={`px-3 py-1.5 bg-redHeader text-white rounded-lg shadow-md transition duration-300 font-rubik text-xs
-            ${!finished || !groupFinished
-              ? "cursor-not-allowed opacity-50"
-              : "cursor-pointer hover:bg-navy"
+            ${
+              !finished || !groupFinished
+                ? 'cursor-not-allowed opacity-50'
+                : 'cursor-pointer hover:bg-navy'
             }`}
           disabled={!finished || !groupFinished}
         >
           {!finished
-            ? "Next: Make Offer →"
+            ? 'Next: Make Offer →'
             : !groupFinished
               ? `Next: Make Offer (${groupSubmissions}/${groupSize})`
-              : "Next: Make Offer →"}
+              : 'Next: Make Offer →'}
         </button>
       </div>
 
@@ -1180,11 +976,7 @@ export default function Interview() {
 
       {/* Popup component */}
       {popup && (
-        <Popup
-          headline={popup.headline}
-          message={popup.message}
-          onDismiss={() => setPopup(null)}
-        />
+        <Popup headline={popup.headline} message={popup.message} onDismiss={() => setPopup(null)} />
       )}
       {donePopup && (
         <Popup
@@ -1193,16 +985,17 @@ export default function Interview() {
           onDismiss={() => setDonePopup(false)}
         />
       )}
-      
+
       {finished && !groupFinished && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
           <div className="bg-white border-4 border-navy rounded-lg shadow-lg p-8 text-center max-w-md mx-auto">
             <h2 className="text-2xl font-bold text-navy mb-4">Waiting for Teammates</h2>
             <p className="text-lg text-gray-700 mb-4">
-              You have completed your interviews and ratings.<br />
+              You have completed your interviews and ratings.
+              <br />
               Waiting for other group members to finish...
             </p>
-            <div className="w-16 h-16 border-t-4 border-navy border-solid rounded-full animate-spin mx-auto mb-4"></div>
+            <Spinner className="mb-4" />
             <Facts />
           </div>
         </div>
